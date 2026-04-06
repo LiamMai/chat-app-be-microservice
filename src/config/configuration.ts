@@ -1,0 +1,21 @@
+export enum NodeEnv {
+    Development = 'development',
+    Production = 'production',
+    Test = 'test',
+}
+
+const envConfig = process.env;
+
+const getEnv = <T extends string>(key: T, defaultValue?: string): string => {
+    const value = envConfig[key];
+    return value || defaultValue || '';
+}
+export const appConfig = {
+    port: parseInt(getEnv('PORT', '3000'), 10),
+    nodeEnv: getEnv('NODE_ENV', 'development') as NodeEnv,
+    cors: {
+        origin: getEnv('CORS_ORIGIN', '*'),
+        methods: getEnv('CORS_METHODS', '*').split(','),
+        enable: getEnv('CORS_ENABLED', 'false').toLowerCase() === 'true',
+    }
+};
