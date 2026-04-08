@@ -17,5 +17,13 @@ export const appConfig = {
         origin: getEnv('CORS_ORIGIN', '*'),
         methods: getEnv('CORS_METHODS', '*').split(','),
         enable: getEnv('CORS_ENABLED', 'false').toLowerCase() === 'true',
+    },
+    postgres: {
+        username: getEnv('POSTGRES_USERNAME', 'postgres'),
+        password: getEnv('POSTGRES_PASSWORD', 'MyStr0ngPassword'),
+        host: getEnv('POSTGRES_PRIMARY_HOST', 'localhost'),
+        database: getEnv('APP_NAME', 'chat-app'),
+        port: parseInt(getEnv('POSTGRES_PRIMARY_HOST_PORT', '5432'), 10),
     }
+
 };

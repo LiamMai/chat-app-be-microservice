@@ -75,3 +75,13 @@ runContainer ${APP_NAME}-mongodb-primary ${APP_NAME}-mongodb \
   --network ${NETWORK_NAME} \
   -- mongod --bind_ip_all --replSet rs0 --keyFile /docker-entrypoint-initdb.d/mongodb-keyfile --port ${MONGODB_PRIMARY_CONTAINER_PORT}
 
+# Run Postgres
+runContainer ${APP_NAME}-postgres-primary ${APP_NAME}-postgres \
+  -p ${POSTGRES_PRIMARY_HOST_PORT}:5432 \
+  -e POSTGRES_USER=${POSTGRES_USERNAME} \
+  -e POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
+  -e POSTGRES_DB=${APP_NAME} \
+  -v ./docker/postgres/data:/var/lib/postgresql/data/pgdata \
+  --env-file .env \
+  --restart always \
+  --network ${NETWORK_NAME}

@@ -9,3 +9,4 @@ echo ">> Building images..."
 
 # Build images
 docker build -f ./docker/mongodb/Dockerfile -t $APP_NAME-mongodb .
+docker build -f ./docker/postgres/Dockerfile -t $APP_NAME-postgres .
