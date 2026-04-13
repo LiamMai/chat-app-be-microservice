@@ -24,6 +24,13 @@ export const appConfig = {
         host: getEnv('POSTGRES_PRIMARY_HOST', 'localhost'),
         database: getEnv('APP_NAME', 'chat-app'),
         port: parseInt(getEnv('POSTGRES_PRIMARY_HOST_PORT', '5432'), 10),
-    }
+    },
+    mongo: {
+        uri: getEnv('MONGODB_BASE_URL', 'mongodb://localhost:27017/chat-app'),
+    },
+    rabbitmq: {
+        url: getEnv('RABBITMQ_URL', 'amqp://localhost:56720'),
+    },
+    appEnv: getEnv('APP_ENV', 'api-gateway') as 'api-gateway' | 'system' | 'user' | 'order' | 'content',
 
 };

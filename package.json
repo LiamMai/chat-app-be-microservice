@@ -7,40 +7,51 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "start": "nest start",
-    "start:dev": "pnpm run docker:init && nest start --watch",
+    "start:dev": "pnpm run docker:init && concurrently \"pnpm run start:gateway\" \"pnpm run start:users\"",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/apps/chat-app-be-microservice/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e": "jest --config ./apps/chat-app-be-microservice/test/jest-e2e.json",
     "docker:run": "dotenvx run -f .env -- ./docker/docker-run.sh",
     "docker:remove": "dotenvx run -f .env -- bash -c \"docker rm -fv \\$(docker ps -aq -f \"name=\\${APP_NAME}\") 2>/dev/null | true\"",
     "docker:stop": "dotenvx run -f .env -- bash -c \"docker stop \\$(docker ps -aq -f \"name=\\${APP_NAME}\") 2>/dev/null | true\"",
     "docker:init": "pnpm docker:run && pnpm docker:mongodb:init && pnpm docker:postgres:init",
     "docker:mongodb:init": "docker exec -it chat-app-microservice-mongodb-primary bash -c \"dotenvx run -f /.env -- bash -c \"/docker-entrypoint-initdb.d/init.sh\"\"",
     "docker:postgres:init": "docker exec -it chat-app-microservice-postgres-primary bash -c \"dotenvx run -f /.env -- bash /docker-entrypoint-initdb.d/init.sh\"",
-    "docker:build": "dotenvx run -f .env -- ./docker/docker-build.sh"
+    "docker:build": "dotenvx run -f .env -- ./docker/docker-build.sh",
+    "start:gateway": "dotenvx run --env-file=.env -- nest start api-gateway --watch",
+    "start:users": "dotenvx run --env-file=.env -- nest start users --watch"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
+    "@nestjs/mapped-types": "*",
+    "@nestjs/mongoose": "^11.0.4",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.2.6",
+    "@nestjs/typeorm": "^11.0.1",
+    "amqp-connection-manager": "^5.0.0",
+    "amqplib": "^1.0.3",
+    "claude-cli": "^1.0.5",
     "helmet": "^8.1.0",
+    "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "typeorm": "^0.3.28"
   },
   "devDependencies": {
     "@dotenvx/dotenvx": "^1.60.0",
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",
+    "@nestjs/microservices": "^11.1.18",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
     "@types/express": "^5.0.0",
@@ -60,6 +71,7 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
+    "concurrently": "^9.0.0",
     "typescript-eslint": "^8.20.0"
   },
   "jest": {
@@ -68,7 +80,7 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": ".",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
@@ -76,7 +88,10 @@
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
-    "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "coverageDirectory": "./coverage",
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/apps/"
+    ]
   }
 }
