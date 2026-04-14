@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { SERVICES } from '@app/common';
+import { SERVICES, USERS_PATTERNS } from '@app/common';
 
 @Injectable()
 export class UsersService {
@@ -9,6 +9,6 @@ export class UsersService {
   ) {}
 
   findAll() {
-    return this.usersClient.send('users.findAll', {});
+    return this.usersClient.send(USERS_PATTERNS.FIND_ALL, {});
   }
 }

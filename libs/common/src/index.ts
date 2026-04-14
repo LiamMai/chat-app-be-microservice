@@ -1,4 +1,6 @@
+export * from './auth';
 export * from './constants';
+export * from './message-patterns';
 export * from './exceptions';
 export * from './filters';
 export * from './interceptors';

@@ -9,7 +9,7 @@
     "build": "nest build",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "start": "nest start",
-    "start:dev": "pnpm run docker:init && concurrently \"pnpm run start:gateway\" \"pnpm run start:users\"",
+    "start:dev": "pnpm run docker:init && concurrently \"pnpm run start:gateway\" \"pnpm run start:users\" \"pnpm run start:auth\"",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/apps/chat-app-be-microservice/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
@@ -26,12 +26,14 @@
     "docker:postgres:init": "docker exec -it chat-app-microservice-postgres-primary bash -c \"dotenvx run -f /.env -- bash /docker-entrypoint-initdb.d/init.sh\"",
     "docker:build": "dotenvx run -f .env -- ./docker/docker-build.sh",
     "start:gateway": "dotenvx run --env-file=.env -- nest start api-gateway --watch",
-    "start:users": "dotenvx run --env-file=.env -- nest start users --watch"
+    "start:users": "dotenvx run --env-file=.env -- nest start users --watch",
+    "start:auth": "dotenvx run --env-file=.env -- nest start auth --watch"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
+    "@nestjs/jwt": "^11.0.0",
     "@nestjs/mapped-types": "*",
     "@nestjs/mongoose": "^11.0.4",
     "@nestjs/platform-express": "^11.0.1",
@@ -39,6 +41,7 @@
     "@nestjs/typeorm": "^11.0.1",
     "amqp-connection-manager": "^5.0.0",
     "amqplib": "^1.0.3",
+    "bcryptjs": "^3.0.3",
     "claude-cli": "^1.0.5",
     "helmet": "^8.1.0",
     "pg": "^8.20.0",
@@ -54,10 +57,12 @@
     "@nestjs/microservices": "^11.1.18",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@types/bcrypt": "^5.0.2",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
     "@types/supertest": "^6.0.2",
+    "concurrently": "^9.0.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
@@ -71,7 +76,6 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
-    "concurrently": "^9.0.0",
     "typescript-eslint": "^8.20.0"
   },
   "jest": {

@@ -1,14 +1,14 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { UsersModule } from './users.module';
 import { getRmqOptions, RpcExceptionFilter, SERVICES, QUEUES } from '@app/common';
 import { appConfig, NodeEnv } from 'config/configuration';
+import { AuthModule } from './auth.module';
 
 async function bootstrap() {
   const isProd = appConfig.nodeEnv === NodeEnv.Production;
 
-  const app = await NestFactory.createMicroservice(UsersModule, {
-    ...getRmqOptions(QUEUES[SERVICES.USERS]),
+  const app = await NestFactory.createMicroservice(AuthModule, {
+    ...getRmqOptions(QUEUES[SERVICES.AUTH]),
     logger: isProd
       ? ['error', 'warn', 'log']
       : ['error', 'warn', 'log', 'debug', 'verbose'],
@@ -17,6 +17,6 @@ async function bootstrap() {
   app.useGlobalFilters(new RpcExceptionFilter());
   await app.listen();
 
-  new Logger('Bootstrap').log(`Users microservice listening on queue: ${QUEUES[SERVICES.USERS]}`);
+  new Logger('Bootstrap').log(`Auth microservice listening on queue: ${QUEUES[SERVICES.AUTH]}`);
 }
 bootstrap();

@@ -45,6 +45,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       error = rpcError.error ?? 'RPC Error';
     } else if (exception instanceof Error) {
       message = exception.message;
+    } else if (typeof exception === 'object' && exception !== null) {
+      // Plain object from RPC transport (microservice threw, filter serialized to RpcErrorPayload)
+      const rpc = exception as { statusCode?: number; message?: string; error?: string };
+      statusCode = rpc.statusCode ?? statusCode;
+      message = rpc.message ?? message;
+      error = rpc.error ?? HttpStatus[statusCode] ?? error;
     }
 
     this.logger.error(
