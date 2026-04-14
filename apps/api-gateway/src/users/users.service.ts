@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { SERVICES } from '@app/common';
 
 @Injectable()
 export class UsersService {
   constructor(
-    @Inject('USERS_CLIENT') private readonly usersClient: ClientProxy,
+    @Inject(SERVICES.USERS) private readonly usersClient: ClientProxy,
   ) {}
 
   findAll() {

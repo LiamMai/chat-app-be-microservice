@@ -1,26 +1,13 @@
 import { Module } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { appConfig } from 'config/configuration';
+import { RmqModule, SERVICES, QUEUES } from '@app/common';
 
 @Module({
   imports: [
-    ClientsModule.register([
-      {
-        name: 'USERS_CLIENT',
-        transport: Transport.RMQ,
-        options: {
-          urls: [appConfig.rabbitmq.url],
-          queue: 'users_queue',
-          queueOptions: {
-            durable: false
-          }
-        }
-      }
-    ])
+    RmqModule.register({ name: SERVICES.USERS, queue: QUEUES[SERVICES.USERS] }),
   ],
   providers: [UsersService],
-  controllers: [UsersController]
+  controllers: [UsersController],
 })
 export class UsersModule {}
