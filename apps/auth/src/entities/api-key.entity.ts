@@ -25,6 +25,11 @@ export class ApiKeyEntity {
   @Column({ length: 12 })
   prefix: string; // First 12 chars shown in UI for identification
 
+  /**
+   * Explicit permission scope for this key — a subset of the owner's permissions.
+   * API keys are intentionally NOT role-based: a key should have the minimum
+   * permissions it actually needs (principle of least privilege).
+   */
   @Column({ type: 'text', array: true, default: [] })
   permissions: Permission[];
 

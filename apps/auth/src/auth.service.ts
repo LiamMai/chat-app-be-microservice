@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
-import { AppException } from '@app/common';
+import { AppException, Role } from '@app/common';
 import { UserEntity } from './entities/user.entity';
 import { RefreshTokenEntity } from './entities/refresh-token.entity';
 import { TokenService } from './token/token.service';
+import { ApiKeyService } from './api-key/api-key.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { CreateApiKeyDto } from './dto/create-api-key.dto';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -21,6 +23,7 @@ export class AuthService {
     @InjectRepository(RefreshTokenEntity)
     private readonly refreshTokenRepo: Repository<RefreshTokenEntity>,
     private readonly tokenService: TokenService,
+    private readonly apiKeyService: ApiKeyService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -30,14 +33,19 @@ export class AuthService {
 
       const password = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
       const user = await manager.save(
-        manager.create(UserEntity, { email: dto.email, name: dto.name, password }),
+        manager.create(UserEntity, {
+          email: dto.email,
+          name: dto.name,
+          password,
+          role: Role.USER, // default role
+        }),
       );
 
       // If token generation throws (e.g. bad JWT keys), transaction rolls back → user deleted
       const tokens = this.tokenService.generateTokenPair({
         sub: user.id,
         email: user.email,
-        permissions: user.permissions,
+        role: user.role,
       });
 
       const tokenHash = this.tokenService.hashToken(tokens.refreshToken);
@@ -53,18 +61,9 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.userRepo.findOne({
       where: { email: dto.email, isActive: true },
-      select: [
-        'id',
-        'email',
-        'name',
-        'password',
-        'permissions',
-        'isActive',
-        'createdAt',
-        'updatedAt',
-      ],
+      select: ['id', 'email', 'name', 'password', 'role', 'isActive', 'createdAt', 'updatedAt'],
     });
-    
+
     if (!user) throw AppException.unauthorized('Invalid credentials');
 
     const valid = await bcrypt.compare(dto.password, user.password);
@@ -73,7 +72,7 @@ export class AuthService {
     const tokens = this.tokenService.generateTokenPair({
       sub: user.id,
       email: user.email,
-      permissions: user.permissions,
+      role: user.role,
     });
 
     await this.storeRefreshToken(user.id, tokens.refreshToken);
@@ -110,7 +109,7 @@ export class AuthService {
     const tokens = this.tokenService.generateTokenPair({
       sub: user.id,
       email: user.email,
-      permissions: user.permissions,
+      role: user.role,
     });
 
     await this.storeRefreshToken(user.id, tokens.refreshToken);
@@ -119,16 +118,26 @@ export class AuthService {
 
   async logout(refreshToken: string): Promise<void> {
     const hash = this.tokenService.hashToken(refreshToken);
-    await this.refreshTokenRepo.update(
-      { tokenHash: hash },
-      { isRevoked: true },
-    );
+    await this.refreshTokenRepo.update({ tokenHash: hash }, { isRevoked: true });
   }
 
-  private async storeRefreshToken(
-    userId: string,
-    token: string,
-  ): Promise<void> {
+  // ── API key delegation ───────────────────────────────────────────────────
+
+  async createApiKey(dto: CreateApiKeyDto) {
+    return this.apiKeyService.create(dto);
+  }
+
+  async listApiKeys(userId: string) {
+    return this.apiKeyService.listByUser(userId);
+  }
+
+  async revokeApiKey(keyId: string, userId: string) {
+    return this.apiKeyService.revoke(keyId, userId);
+  }
+
+  // ── Private ──────────────────────────────────────────────────────────────
+
+  private async storeRefreshToken(userId: string, token: string): Promise<void> {
     const tokenHash = this.tokenService.hashToken(token);
     const expiresAt = this.tokenService.refreshTokenExpiresAt();
     await this.refreshTokenRepo.save(

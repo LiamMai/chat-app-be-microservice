@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, Inject, Injectable } from '@nestjs/commo
 import { ClientProxy } from '@nestjs/microservices';
 import { Request } from 'express';
 import { firstValueFrom, timeout } from 'rxjs';
-import { AppException, AUTH_PATTERNS, RequestUser, SERVICES } from '@app/common';
+import { AppException, AUTH_PATTERNS, RequestUser, Role, SERVICES } from '@app/common';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -16,7 +16,7 @@ export class ApiKeyGuard implements CanActivate {
 
     if (!key) throw AppException.unauthorized('Missing x-api-key header');
 
-    const result = await firstValueFrom<{ userId: string; permissions: RequestUser['permissions'] } | null>(
+    const result = await firstValueFrom<{ userId: string; role: Role; permissions: RequestUser['permissions'] } | null>(
       this.authClient.send(AUTH_PATTERNS.API_KEY_VALIDATE, { key }).pipe(timeout(5000)),
     ).catch(() => {
       throw AppException.internal('Auth service unavailable');
@@ -24,7 +24,12 @@ export class ApiKeyGuard implements CanActivate {
 
     if (!result) throw AppException.unauthorized('Invalid or revoked API key');
 
-    const user: RequestUser = { userId: result.userId, email: '', permissions: result.permissions };
+    const user: RequestUser = {
+      userId: result.userId,
+      email: '',
+      role: result.role,
+      permissions: result.permissions,
+    };
     (request as Request & { user: RequestUser }).user = user;
 
     return true;

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
-import { AppException, Permission } from '@app/common';
+import { AppException, Permission, Role } from '@app/common';
 import { ApiKeyEntity } from '../entities/api-key.entity';
 import { CreateApiKeyDto } from '../dto/create-api-key.dto';
 
@@ -38,7 +38,7 @@ export class ApiKeyService {
     return { apiKey, rawKey: key }; // rawKey shown ONCE — never stored plain
   }
 
-  async validate(rawKey: string): Promise<{ userId: string; permissions: Permission[] } | null> {
+  async validate(rawKey: string): Promise<{ userId: string; role: Role; permissions: Permission[] } | null> {
     if (!rawKey?.startsWith('chat_')) return null;
 
     const prefix = rawKey.substring(0, 12);
@@ -54,7 +54,9 @@ export class ApiKeyService {
     // Fire-and-forget lastUsedAt update
     void this.apiKeyRepo.update(entity.id, { lastUsedAt: new Date() });
 
-    return { userId: entity.userId, permissions: entity.permissions };
+    // API keys carry explicit permissions only — no role elevation.
+    // Role.USER is used as a sentinel so RequestUser.role is always defined.
+    return { userId: entity.userId, role: Role.USER, permissions: entity.permissions };
   }
 
   async listByUser(userId: string): Promise<ApiKeyEntity[]> {

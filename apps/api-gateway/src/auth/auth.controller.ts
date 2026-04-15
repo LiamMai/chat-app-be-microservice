@@ -19,12 +19,13 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
   ApiConflictResponse,
+  ApiForbiddenResponse,
   getSchemaPath,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
-import { CurrentUser, Public } from '@app/common';
+import { CurrentUser, Permission, Permissions, Public, Role, Roles } from '@app/common';
 import {
   RegisterDto,
   LoginDto,
@@ -44,6 +45,8 @@ import {
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  // ── Public ────────────────────────────────────────────────────────────────
 
   @Public()
   @Post('register')
@@ -74,6 +77,8 @@ export class AuthController {
     return this.authService.refresh(dto.refreshToken);
   }
 
+  // ── Authenticated ─────────────────────────────────────────────────────────
+
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @Post('logout')
@@ -87,11 +92,18 @@ export class AuthController {
 
   // ── API Keys ──────────────────────────────────────────────────────────────
 
+  /**
+   * Create API key.
+   * SUPER_ADMIN: can create keys with any permissions.
+   * Others: forbidden — API key management is a platform-level operation.
+   */
   @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Roles(Role.SUPER_ADMIN)
   @Post('api-keys')
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Create API key' })
+  @ApiOperation({ summary: 'Create API key (SUPER_ADMIN only)' })
   @ApiCreatedResponse(apiResponseSchema({ $ref: getSchemaPath(CreatedApiKeyDto) }))
+  @ApiForbiddenResponse({ description: 'SUPER_ADMIN role required' })
   createApiKey(
     @CurrentUser('userId') userId: string,
     @Body() dto: CreateApiKeyDto,
@@ -99,21 +111,31 @@ export class AuthController {
     return this.authService.createApiKey({ userId, ...dto });
   }
 
+  /**
+   * List own API keys — any authenticated user can see their own keys.
+   * SUPER_ADMIN sees their own keys too (not all users' keys — use a separate admin endpoint if needed).
+   */
   @UseGuards(JwtAuthGuard)
   @Get('api-keys')
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'List your API keys (raw key not returned)' })
+  @ApiOperation({ summary: 'List your API keys (raw key never returned)' })
   @ApiOkResponse(apiResponseSchema({ type: 'array', items: { $ref: getSchemaPath(ApiKeyDto) } }))
   listApiKeys(@CurrentUser('userId') userId: string) {
     return this.authService.listApiKeys(userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  /**
+   * Revoke API key.
+   * SUPER_ADMIN only — same reasoning as create.
+   */
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Roles(Role.SUPER_ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @Delete('api-keys/:id')
   @ApiBearerAuth('access-token')
-  @ApiOperation({ summary: 'Revoke API key' })
+  @ApiOperation({ summary: 'Revoke API key (SUPER_ADMIN only)' })
   @ApiNoContentResponse({ description: 'Key revoked' })
+  @ApiForbiddenResponse({ description: 'SUPER_ADMIN role required' })
   revokeApiKey(@Param('id') keyId: string, @CurrentUser('userId') userId: string) {
     return this.authService.revokeApiKey(keyId, userId);
   }

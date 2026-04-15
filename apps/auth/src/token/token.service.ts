@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
-import { JwtPayload, Permission } from '@app/common';
+import { JwtPayload, Permission, Role, ROLE_PERMISSIONS } from '@app/common';
 import { appConfig } from 'config/configuration';
 
 @Injectable()
@@ -19,9 +19,10 @@ export class TokenService {
   generateTokenPair(payload: {
     sub: string;
     email: string;
-    permissions: Permission[];
+    role: Role;
   }): { accessToken: string; refreshToken: string } {
-    const base = { sub: payload.sub, email: payload.email, permissions: payload.permissions };
+    const permissions: Permission[] = ROLE_PERMISSIONS[payload.role];
+    const base = { sub: payload.sub, email: payload.email, role: payload.role, permissions };
 
     const accessToken = this.jwtService.sign(
       { ...base, type: 'access' } satisfies Omit<JwtPayload, 'iat' | 'exp'>,

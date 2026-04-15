@@ -5,7 +5,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Permission } from '@app/common';
+import { Role } from '@app/common';
 
 @Entity('auth_users')
 export class UserEntity {
@@ -21,8 +21,8 @@ export class UserEntity {
   @Column({ select: false })
   password: string;
 
-  @Column({ type: 'text', array: true, default: [] })
-  permissions: Permission[];
+  @Column({ type: 'enum', enum: Role, default: Role.USER })
+  role: Role;
 
   @Column({ default: true })
   isActive: boolean;
