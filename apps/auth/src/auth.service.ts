@@ -59,10 +59,12 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.userRepo.findOne({
-      where: { email: dto.email, isActive: true },
-      select: ['id', 'email', 'name', 'password', 'role', 'isActive', 'createdAt', 'updatedAt'],
-    });
+    const user = await this.userRepo
+      .createQueryBuilder('u')
+      .addSelect('u.password')
+      .where('u.email = :email', { email: dto.email })
+      .andWhere('u.isActive = :isActive', { isActive: true })
+      .getOne();
 
     if (!user) throw AppException.unauthorized('Invalid credentials');
 
