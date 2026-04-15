@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { appConfig } from 'config/configuration';
+import { RedisModule } from '@app/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { TokenService } from './token/token.service';
@@ -23,6 +24,7 @@ import { ApiKeyEntity } from './entities/api-key.entity';
       synchronize: appConfig.nodeEnv !== 'production', // never in prod — use migrations
     }),
     TypeOrmModule.forFeature([UserEntity, RefreshTokenEntity, ApiKeyEntity]),
+    RedisModule.forRoot(),
     JwtModule.register({
       privateKey: appConfig.jwt.privateKey,
       publicKey: appConfig.jwt.publicKey,

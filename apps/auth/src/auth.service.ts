@@ -64,8 +64,7 @@ export class AuthService {
         'updatedAt',
       ],
     });
-    console.log("🚀 ~ AuthService ~ login ~ user:", user)
-
+    
     if (!user) throw AppException.unauthorized('Invalid credentials');
 
     const valid = await bcrypt.compare(dto.password, user.password);

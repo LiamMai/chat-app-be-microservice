@@ -28,6 +28,12 @@ export const appConfig = {
     mongo: {
         uri: getEnv('MONGODB_BASE_URL', 'mongodb://localhost:27017/chat-app'),
     },
+    redis: {
+        host: getEnv('REDIS_HOST', 'localhost'),
+        port: parseInt(getEnv('REDIS_HOST_PORT', '6379'), 10),
+        password: getEnv('REDIS_PASSWORD', ''),
+        db: parseInt(getEnv('REDIS_DB', '0'), 10),
+    },
     rabbitmq: {
         url: getEnv('RABBITMQ_URL', 'amqp://localhost:56720'),
     },

@@ -5,4 +5,5 @@ export * from './exceptions';
 export * from './filters';
 export * from './interceptors';
 export * from './response';
+export * from './redis';
 export * from './rmq';

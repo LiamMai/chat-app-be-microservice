@@ -42,6 +42,7 @@
     "amqp-connection-manager": "^5.0.0",
     "amqplib": "^1.0.3",
     "bcryptjs": "^3.0.3",
+    "ioredis": "^5.4.2",
     "claude-cli": "^1.0.5",
     "helmet": "^8.1.0",
     "pg": "^8.20.0",
