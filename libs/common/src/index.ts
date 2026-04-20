@@ -8,3 +8,4 @@ export * from './pagination';
 export * from './response';
 export * from './redis';
 export * from './rmq';
+export * from './swagger';

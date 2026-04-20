@@ -28,7 +28,9 @@
     "start:gateway": "dotenvx run --env-file=.env -- nest start api-gateway --watch",
     "start:users": "dotenvx run --env-file=.env -- nest start users --watch",
     "start:auth": "dotenvx run --env-file=.env -- nest start auth --watch",
-    "seed:super-admin": "dotenvx run --env-file=.env -- ts-node -r tsconfig-paths/register scripts/seed-super-admin.ts"
+    "seed:super-admin": "dotenvx run --env-file=.env -- ts-node -r tsconfig-paths/register scripts/seed-super-admin.ts",
+    "migrate:friends": "dotenvx run --env-file=.env -- ts-node -r tsconfig-paths/register scripts/migrate-friends-table.ts",
+    "seed:user": "dotenvx run --env-file=.env -- ts-node -r tsconfig-paths/register scripts/seed-users.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

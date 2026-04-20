@@ -139,6 +139,23 @@ export class CacheService {
     return this.redis.scard(key);
   }
 
+  // ── Lists (ordered caches, paginated suggestions) ────────────────────────
+
+  /** Append items to the right of a list. Returns new list length. */
+  async rPush({ key, values }: { key: string; values: string[] }): Promise<number> {
+    return this.redis.rpush(key, ...values);
+  }
+
+  /** Get a range of items (0-based, inclusive). Returns [] if key missing. */
+  async lRange({ key, start, stop }: { key: string; start: number; stop: number }): Promise<string[]> {
+    return this.redis.lrange(key, start, stop);
+  }
+
+  /** Total items in list. 0 if key missing (treat as cache miss). */
+  async lLen({ key }: { key: string }): Promise<number> {
+    return this.redis.llen(key);
+  }
+
   // ── Pub/Sub helpers ──────────────────────────────────────────────────────
 
   async publish(channel: string, message: unknown): Promise<number> {

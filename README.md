@@ -1,98 +1,293 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Chat App — Backend Microservices
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+NestJS monorepo with three microservices communicating over RabbitMQ, behind a single HTTP API Gateway.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Tech Stack
 
-## Description
+| Layer | Technology |
+|---|---|
+| Runtime | Node.js 20+ |
+| Framework | NestJS 11 |
+| Language | TypeScript 5 |
+| Package manager | pnpm |
+| Transport | RabbitMQ (AMQP) — `@nestjs/microservices` |
+| Auth | RS256 JWT — access (15 min) + refresh (7 d) rotation |
+| Primary DB | PostgreSQL 15 + TypeORM 0.3 |
+| Document DB | MongoDB (replica set) + Mongoose |
+| Cache | Redis 7 (ioredis) |
+| Validation | class-validator + class-transformer |
+| API Docs | Swagger / OpenAPI (`@nestjs/swagger`) |
+| Containers | Docker (custom images + shell scripts) |
+| Env management | `@dotenvx/dotenvx` |
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Architecture
 
-## Project setup
-
-```bash
-$ pnpm install
+```
+HTTP Client
+    │
+    ▼
+┌─────────────────┐
+│   api-gateway   │  :3000   — guards, Swagger, request routing
+└────────┬────────┘
+         │ RabbitMQ
+    ┌────┴────┐
+    ▼         ▼
+┌────────┐ ┌────────┐
+│  auth  │ │ users  │
+│service │ │service │
+└────────┘ └────────┘
+ PostgreSQL  PostgreSQL
+             + Redis
 ```
 
-## Compile and run the project
+### Apps
+
+| App | Responsibility |
+|---|---|
+| `api-gateway` | HTTP entry point, JWT/API-key guards, Swagger |
+| `auth` | Register, login, JWT issue/refresh/revoke, API keys |
+| `users` | User profiles, roles, ban, friend system |
+
+### Shared library — `@app/common`
+
+`libs/common` exports:
+
+- **Auth** — `JwtPayload`, `RequestUser`, `Role`, `Permission`, `ROLE_PERMISSIONS`, `@CurrentUser`, `@Roles`, `@Permissions`
+- **Pagination** — `PageQueryDto`, `PageDto<T>`, `paginate()`, `paginateCachedList()`
+- **Redis** — `CacheService`, `CacheKey`
+- **Swagger** — `apiOkSchema()`, `apiArraySchema()`, `apiPaginatedSchema()`, `apiCreatedSchema()`
+- **Exceptions** — `AppException` (wraps HTTP status codes)
+- **Filters** — `RpcExceptionFilter`, `AllExceptionsFilter`
+- **Interceptors** — `TransformInterceptor` (wraps all responses in `ApiResponse` envelope), `LoggingInterceptor`
+
+## Prerequisites
+
+- Node.js ≥ 20
+- pnpm ≥ 9 → `npm i -g pnpm`
+- Docker Desktop
+
+## Local Setup
+
+### 1. Clone and install
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+git clone <repo-url>
+cd chat-app-be-microservice
+pnpm install
 ```
 
-## Run tests
+### 2. Environment
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+cp .env.example .env
 ```
 
-## Deployment
+Defaults work for local Docker. Fill in the four required values:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+| Variable | How |
+|---|---|
+| `JWT_PRIVATE_KEY_BASE64` | Step 3 below |
+| `JWT_PUBLIC_KEY_BASE64` | Step 3 below |
+| `SUPER_ADMIN_EMAIL` | Any email |
+| `SUPER_ADMIN_PASSWORD` | Min 8 chars |
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 3. Generate RS256 JWT keys
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+openssl genrsa -out private.pem 4096
+openssl rsa -in private.pem -pubout -out public.pem
+
+# Copy base64 output into .env
+base64 -i private.pem | tr -d '\n'   # → JWT_PRIVATE_KEY_BASE64
+base64 -i public.pem  | tr -d '\n'   # → JWT_PUBLIC_KEY_BASE64
+
+rm private.pem public.pem
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 4. Start infrastructure
 
-## Resources
+```bash
+# Build custom Postgres + MongoDB images (first time only)
+pnpm docker:build
 
-Check out a few resources that may come in handy when working with NestJS:
+# Start Redis, RabbitMQ, MongoDB, Postgres
+pnpm docker:run
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Wait ~5 s, then initialise:
 
-## Support
+```bash
+# MongoDB replica set + Postgres schema
+pnpm docker:init
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### 5. Run migrations
 
-## Stay in touch
+```bash
+# Create friends table + enum type + indexes
+pnpm migrate:friends
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### 6. Seed data
 
-## License
+```bash
+# Super admin (uses SUPER_ADMIN_* vars from .env)
+pnpm seed:super-admin
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+# 31 test users + realistic friend graph
+pnpm seed:user
+```
+
+## Running
+
+```bash
+# All three services with hot-reload
+pnpm start:dev
+
+# Individual services
+pnpm start:gateway   # api-gateway  :3000
+pnpm start:auth      # auth service
+pnpm start:users     # users service
+```
+
+## API Documentation
+
+```
+http://localhost:3000/api/docs
+```
+
+After login, Swagger auto-fills `Authorization` from the response `accessToken`. Use the **Authorize** button to set it manually.
+
+## Test Data
+
+All seed accounts use password **`Seed@12345`**.
+
+| Email | Role | Notes |
+|---|---|---|
+| _(SUPER_ADMIN_EMAIL from .env)_ | SUPER_ADMIN | Platform operator |
+| `seed-admin@chat.dev` | ADMIN | Admin endpoint testing |
+| `seed-user-01@chat.dev` | USER | Cluster A, bridge to cluster B |
+| `seed-user-06@chat.dev` | USER | Cluster B, bridge to clusters A + C |
+| `seed-user-11@chat.dev` | USER | Cluster C |
+| `seed-user-16..18@chat.dev` | USER | Pending requests → users 01-03 |
+| `seed-user-19@chat.dev` | USER | Declined request → user-04 |
+| `seed-user-20@chat.dev` | USER | Blocked by user-01 |
+| `seed-user-21..30@chat.dev` | USER | Isolated — fallback suggestion pool |
+
+Friend graph:
+- **Cluster A** users 01-05: fully connected
+- **Cluster B** users 06-10: fully connected
+- **Cluster C** users 11-15: fully connected
+- Bridges: `01↔06`, `06↔11`
+
+### Test friend suggestions
+
+```bash
+# 1. Login
+POST /auth/login
+{ "email": "seed-user-01@chat.dev", "password": "Seed@12345" }
+
+# 2. Suggestions (paginated)
+GET /friends/suggestions?page=1&limit=20
+Authorization: Bearer <accessToken>
+
+# Expected:
+#   Mutual-friends tier → cluster B + C users
+#   Fallback tier       → users 21-30
+#   Excluded            → cluster A (already friends), user-20 (blocked)
+```
+
+## Testing
+
+```bash
+# Unit tests
+pnpm test
+
+# Watch mode
+pnpm test:watch
+
+# Coverage
+pnpm test:cov
+
+# E2E
+pnpm test:e2e
+```
+
+## Project Structure
+
+```
+chat-app-be-microservice/
+├── apps/
+│   ├── api-gateway/
+│   │   └── src/
+│   │       ├── auth/           # Auth forwarding, JWT/API-key guards
+│   │       ├── users/          # User management forwarding
+│   │       └── friends/        # Friend system forwarding
+│   ├── auth/
+│   │   └── src/
+│   │       ├── token/          # JWT issue, refresh, revoke
+│   │       └── api-key/        # API key CRUD + validation
+│   └── users/
+│       └── src/
+│           ├── entities/       # TypeORM entities (UserEntity, FriendEntity)
+│           └── friends/        # Friend service + RMQ controller
+├── libs/
+│   └── common/                 # @app/common shared library
+│       └── src/
+│           ├── auth/           # RBAC, decorators, JWT payload types
+│           ├── pagination/     # PageDto, paginate(), paginateCachedList()
+│           ├── redis/          # CacheService, CacheKey
+│           ├── swagger/        # Reusable response schema builders
+│           ├── exceptions/     # AppException
+│           ├── filters/        # Global exception filters
+│           ├── interceptors/   # TransformInterceptor, LoggingInterceptor
+│           └── response/       # ApiResponse envelope DTO
+├── config/
+│   └── configuration.ts        # Typed env config
+├── scripts/
+│   ├── seed-super-admin.ts     # Idempotent super admin seeder
+│   ├── seed-users.ts           # 31 test users + friend graph
+│   └── migrate-friends-table.ts
+└── docker/
+    ├── docker-run.sh
+    ├── docker-build.sh
+    ├── postgres/               # Custom image + init SQL
+    └── mongodb/                # Custom image + replica set init
+```
+
+## RBAC
+
+| Role | Key permissions |
+|---|---|
+| `super_admin` | All — manages API keys, assigns roles |
+| `admin` | Read users, ban users, moderate content |
+| `user` | Messaging, rooms, friend system |
+
+Super admins are platform operators and cannot participate in the friend system.
+
+## API Response Format
+
+All endpoints return the same envelope:
+
+```jsonc
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Success",
+  "data": { ... },       // null on errors
+  "meta": {              // only on paginated responses
+    "total": 100,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 5,
+    "hasPrevPage": false,
+    "hasNextPage": true
+  },
+  "error": null,
+  "timestamp": "2026-01-01T00:00:00.000Z"
+}
+```
+
+## Environment Variables
+
+See [.env.example](.env.example) for all variables with their defaults.

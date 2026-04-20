@@ -29,6 +29,12 @@ export const CacheKey = {
   // ── Rooms ────────────────────────────────────────────────────────────────
   roomMembers: (roomId: string) => `room:${roomId}:members`,
 
+  // ── Friends ──────────────────────────────────────────────────────────────
+  /** Set of accepted friendIds for fast lookup */
+  friendSet:       (userId: string) => `friends:set:${userId}`,
+  /** Cached suggestion list (TTL 1h) */
+  friendSuggestions: (userId: string) => `friends:suggestions:${userId}`,
+
   // ── Distributed locks ────────────────────────────────────────────────────
   lock: (resource: string) => `lock:${resource}`,
 } as const;
