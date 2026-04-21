@@ -23,11 +23,21 @@ export const CacheKey = {
   rateLimitUser: (userId: string, route: string) => `rate:user:${userId}:${route}`,
 
   // ── Presence (chat) ──────────────────────────────────────────────────────
-  /** User online status — refreshed by client heartbeat */
+  /** User online status — refreshed by client heartbeat (TTL 30 s) */
   presence: (userId: string) => `presence:${userId}`,
 
   // ── Rooms ────────────────────────────────────────────────────────────────
+  /** Set of userIds in a room — fast membership check */
   roomMembers: (roomId: string) => `room:${roomId}:members`,
+
+  /** Last N messages in a room — fast load on join (TTL 1 h) */
+  recentMessages: (roomId: string) => `room:${roomId}:recent`,
+
+  /** Set of userIds currently typing in a room (TTL per entry ~5 s) */
+  typing: (roomId: string) => `room:${roomId}:typing`,
+
+  /** Redis Pub/Sub channel for new messages in a room */
+  roomChannel: (roomId: string) => `chat:room:${roomId}`,
 
   // ── Friends ──────────────────────────────────────────────────────────────
   /** Set of accepted friendIds for fast lookup */

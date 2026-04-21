@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { appConfig } from 'config/configuration';
-import { RedisModule } from '@app/common';
+import { RedisModule, RmqModule, SERVICES, QUEUES } from '@app/common';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { UserEntity } from './entities/user.entity';
@@ -19,10 +19,11 @@ import { FriendController } from './friends/friend.controller';
       password: appConfig.postgres.password,
       database: appConfig.postgres.database,
       entities: [UserEntity, FriendEntity],
-      synchronize: false, // auth service owns UserEntity schema; friends table created separately
+      synchronize: false,
     }),
     TypeOrmModule.forFeature([UserEntity, FriendEntity]),
     RedisModule.forRoot(),
+    RmqModule.register({ name: SERVICES.CHAT, queue: QUEUES[SERVICES.CHAT] }),
   ],
   controllers: [UsersController, FriendController],
   providers: [UsersService, FriendService],

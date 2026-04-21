@@ -146,9 +146,19 @@ export class CacheService {
     return this.redis.rpush(key, ...values);
   }
 
+  /** Prepend items to the left of a list. Returns new list length. */
+  async lPush({ key, values }: { key: string; values: string[] }): Promise<number> {
+    return this.redis.lpush(key, ...values);
+  }
+
   /** Get a range of items (0-based, inclusive). Returns [] if key missing. */
   async lRange({ key, start, stop }: { key: string; start: number; stop: number }): Promise<string[]> {
     return this.redis.lrange(key, start, stop);
+  }
+
+  /** Trim list to [start, stop] — removes items outside the window. */
+  async lTrim({ key, start, stop }: { key: string; start: number; stop: number }): Promise<void> {
+    await this.redis.ltrim(key, start, stop);
   }
 
   /** Total items in list. 0 if key missing (treat as cache miss). */

@@ -9,7 +9,6 @@
     "build": "nest build",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "start": "nest start",
-    "start:dev": "pnpm run docker:init && concurrently \"pnpm run start:gateway\" \"pnpm run start:users\" \"pnpm run start:auth\"",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/apps/chat-app-be-microservice/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
@@ -28,9 +27,13 @@
     "start:gateway": "dotenvx run --env-file=.env -- nest start api-gateway --watch",
     "start:users": "dotenvx run --env-file=.env -- nest start users --watch",
     "start:auth": "dotenvx run --env-file=.env -- nest start auth --watch",
+    "start:chat": "dotenvx run --env-file=.env -- nest start chat --watch",
+    "start:dev": "pnpm run docker:init && concurrently \"pnpm run start:gateway\" \"pnpm run start:users\" \"pnpm run start:auth\" \"pnpm run start:chat\"",
     "seed:super-admin": "dotenvx run --env-file=.env -- ts-node -r tsconfig-paths/register scripts/seed-super-admin.ts",
     "migrate:friends": "dotenvx run --env-file=.env -- ts-node -r tsconfig-paths/register scripts/migrate-friends-table.ts",
-    "seed:user": "dotenvx run --env-file=.env -- ts-node -r tsconfig-paths/register scripts/seed-users.ts"
+    "migrate:chat": "dotenvx run --env-file=.env -- ts-node -r tsconfig-paths/register scripts/migrate-chat-indexes.ts",
+    "seed:user": "dotenvx run --env-file=.env -- ts-node -r tsconfig-paths/register scripts/seed-users.ts",
+    "seed:chat": "dotenvx run --env-file=.env -- ts-node -r tsconfig-paths/register scripts/seed-chat.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -40,8 +43,10 @@
     "@nestjs/mapped-types": "*",
     "@nestjs/mongoose": "^11.0.4",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-socket.io": "^11.1.19",
     "@nestjs/swagger": "^11.2.6",
     "@nestjs/typeorm": "^11.0.1",
+    "@nestjs/websockets": "^11.1.19",
     "amqp-connection-manager": "^5.0.0",
     "amqplib": "^1.0.3",
     "bcryptjs": "^3.0.3",
@@ -50,9 +55,11 @@
     "claude-cli": "^1.0.5",
     "helmet": "^8.1.0",
     "ioredis": "^5.4.2",
+    "mongoose": "^9.4.1",
     "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "socket.io": "^4.8.3",
     "typeorm": "^0.3.28"
   },
   "devDependencies": {
@@ -74,6 +81,7 @@
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^16.0.0",
     "jest": "^30.0.0",
+    "mongodb": "^7.1.1",
     "prettier": "^3.4.2",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",

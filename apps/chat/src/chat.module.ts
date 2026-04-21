@@ -1,0 +1,23 @@
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { appConfig } from 'config/configuration';
+import { RedisModule } from '@app/common';
+import { ChatController } from './chat.controller';
+import { RoomService } from './rooms/room.service';
+import { MessageService } from './messages/message.service';
+import { Room, RoomSchema } from './entities/room.entity';
+import { Message, MessageSchema } from './entities/message.entity';
+
+@Module({
+  imports: [
+    MongooseModule.forRoot(appConfig.mongo.uri),
+    MongooseModule.forFeature([
+      { name: Room.name,    schema: RoomSchema },
+      { name: Message.name, schema: MessageSchema },
+    ]),
+    RedisModule.forRoot(),
+  ],
+  controllers: [ChatController],
+  providers: [RoomService, MessageService],
+})
+export class ChatModule {}

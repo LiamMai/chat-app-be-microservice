@@ -61,7 +61,8 @@ async function bootstrap() {
 
   const logger = new Logger('Bootstrap');
   logger.log(`API Gateway running on port ${appConfig.port}`);
-  logger.log(`Swagger docs → http://localhost:${appConfig.port}/api/docs`);
+  logger.log(`Swagger docs      → http://localhost:${appConfig.port}/api/docs`);
+  logger.log(`WS Playground     → http://localhost:${appConfig.port}/api/ws-playground`);
   logger.debug(`Log level: ${isProd ? 'production' : 'debug'}`);
 }
 bootstrap();

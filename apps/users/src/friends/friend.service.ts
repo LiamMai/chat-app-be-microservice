@@ -1,15 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Not, Repository } from 'typeorm';
-import { AppException, CacheKey, CacheService, PageQueryDto, paginate, paginateCachedList, Role } from '@app/common';
+import { DataSource, In, Repository } from 'typeorm';
+import { AppException, CHAT_PATTERNS, CacheKey, CacheService, PageQueryDto, SERVICES, paginate, paginateCachedList, Role } from '@app/common';
+import { ClientProxy } from '@nestjs/microservices';
 import { FriendEntity, FriendStatus } from '../entities/friend.entity';
 import { UserEntity } from '../entities/user.entity';
 
-const SUGGESTION_TTL   = 3600; // 1 hour
-const SUGGESTION_POOL  = 200;  // max IDs stored in Redis list
+const SUGGESTION_TTL   = 3600;
+const SUGGESTION_POOL  = 200;
 
 @Injectable()
 export class FriendService {
+  private readonly logger = new Logger(FriendService.name);
+
   constructor(
     @InjectRepository(FriendEntity)
     private readonly friendRepo: Repository<FriendEntity>,
@@ -18,6 +21,8 @@ export class FriendService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly cache: CacheService,
+    @Inject(SERVICES.CHAT)
+    private readonly chatClient: ClientProxy,
   ) {}
 
   // ── Send request ─────────────────────────────────────────────────────────
@@ -83,14 +88,24 @@ export class FriendService {
     request.status = FriendStatus.ACCEPTED;
     await this.friendRepo.save(request);
 
-    // Update Redis friend sets for both users
+    // Update Redis friend sets + invalidate suggestion caches
     await Promise.all([
       this.cache.sAdd(CacheKey.friendSet(userId), requesterId),
       this.cache.sAdd(CacheKey.friendSet(requesterId), userId),
-      // Invalidate suggestion caches
       this.cache.del(CacheKey.friendSuggestions(userId)),
       this.cache.del(CacheKey.friendSuggestions(requesterId)),
     ]);
+
+    // Auto-create DM room — fire-and-forget (friendship already saved above)
+    this.chatClient
+      .send(CHAT_PATTERNS.ROOM_CREATE, {
+        createdBy: requesterId,
+        type: 'dm',
+        members: [userId, requesterId],
+      })
+      .subscribe({
+        error: (err) => this.logger.error('Auto DM room creation failed', err?.message),
+      });
 
     return request;
   }

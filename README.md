@@ -1,6 +1,6 @@
 # Chat App — Backend Microservices
 
-NestJS monorepo with three microservices communicating over RabbitMQ, behind a single HTTP API Gateway.
+NestJS monorepo with four microservices communicating over RabbitMQ, behind a single HTTP API Gateway.
 
 ## Tech Stack
 
@@ -25,37 +25,37 @@ NestJS monorepo with three microservices communicating over RabbitMQ, behind a s
 ```
 HTTP Client
     │
-    ▼
-┌─────────────────┐
-│   api-gateway   │  :3000   — guards, Swagger, request routing
-└────────┬────────┘
-         │ RabbitMQ
-    ┌────┴────┐
-    ▼         ▼
-┌────────┐ ┌────────┐
-│  auth  │ │ users  │
-│service │ │service │
-└────────┘ └────────┘
- PostgreSQL  PostgreSQL
-             + Redis
+    ├── REST/WebSocket ──▶ api-gateway :3000
+    │                           │ RabbitMQ
+    │               ┌───────────┼───────────┐
+    │               ▼           ▼           ▼
+    │          ┌────────┐ ┌────────┐ ┌────────┐
+    │          │  auth  │ │ users  │ │  chat  │
+    │          └────────┘ └────────┘ └────────┘
+    │           Postgres   Postgres   MongoDB
+    │                      + Redis    + Redis
+    │
+    └── Browser ──────▶ /api/ws-playground  (WebSocket test UI)
+                        /api/docs           (Swagger)
 ```
 
 ### Apps
 
 | App | Responsibility |
 |---|---|
-| `api-gateway` | HTTP entry point, JWT/API-key guards, Swagger |
+| `api-gateway` | HTTP + WebSocket entry point, JWT/API-key guards, Swagger |
 | `auth` | Register, login, JWT issue/refresh/revoke, API keys |
 | `users` | User profiles, roles, ban, friend system |
+| `chat` | Rooms, messages, real-time via Redis Pub/Sub |
 
 ### Shared library — `@app/common`
 
 `libs/common` exports:
 
 - **Auth** — `JwtPayload`, `RequestUser`, `Role`, `Permission`, `ROLE_PERMISSIONS`, `@CurrentUser`, `@Roles`, `@Permissions`
-- **Pagination** — `PageQueryDto`, `PageDto<T>`, `paginate()`, `paginateCachedList()`
-- **Redis** — `CacheService`, `CacheKey`
-- **Swagger** — `apiOkSchema()`, `apiArraySchema()`, `apiPaginatedSchema()`, `apiCreatedSchema()`
+- **Pagination** — `PageQueryDto`, `PageDto<T>`, `paginate()` (TypeORM), `paginateMongo()` (Mongoose), `paginateCachedList()` (Redis)
+- **Redis** — `CacheService`, `CacheKey`, `REDIS_SUB_CLIENT`
+- **Swagger** — `apiOkSchema()`, `apiPaginatedSchema()`, `apiCreatedSchema()`
 - **Exceptions** — `AppException` (wraps HTTP status codes)
 - **Filters** — `RpcExceptionFilter`, `AllExceptionsFilter`
 - **Interceptors** — `TransformInterceptor` (wraps all responses in `ApiResponse` envelope), `LoggingInterceptor`
@@ -126,6 +126,9 @@ pnpm docker:init
 ```bash
 # Create friends table + enum type + indexes
 pnpm migrate:friends
+
+# Create MongoDB indexes for chat collections
+pnpm migrate:chat
 ```
 
 ### 6. Seed data
@@ -136,27 +139,32 @@ pnpm seed:super-admin
 
 # 31 test users + realistic friend graph
 pnpm seed:user
+
+# Chat rooms + sample messages between seed users
+pnpm seed:chat
 ```
 
 ## Running
 
 ```bash
-# All three services with hot-reload
+# All four services with hot-reload
 pnpm start:dev
 
 # Individual services
-pnpm start:gateway   # api-gateway  :3000
+pnpm start:gateway   # api-gateway  :3000  (HTTP + WebSocket /chat)
 pnpm start:auth      # auth service
+pnpm start:chat      # chat service
 pnpm start:users     # users service
 ```
 
 ## API Documentation
 
-```
-http://localhost:3000/api/docs
-```
+| Tool | URL | Purpose |
+|---|---|---|
+| Swagger UI | `http://localhost:3000/api/docs` | REST API docs + testing |
+| WS Playground | `http://localhost:3000/api/ws-playground` | Real-time WebSocket testing |
 
-After login, Swagger auto-fills `Authorization` from the response `accessToken`. Use the **Authorize** button to set it manually.
+After login, Swagger auto-fills `Authorization` from the response `accessToken`. Paste the same token into the WS Playground to connect.
 
 ## Test Data
 
