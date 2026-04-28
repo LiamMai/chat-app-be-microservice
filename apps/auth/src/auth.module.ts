@@ -21,7 +21,8 @@ import { ApiKeyEntity } from './entities/api-key.entity';
       password: appConfig.postgres.password,
       database: appConfig.postgres.database,
       entities: [UserEntity, RefreshTokenEntity, ApiKeyEntity],
-      synchronize: appConfig.nodeEnv !== 'production', // never in prod — use migrations
+      synchronize: false,
+      migrationsRun: false, // users service owns and runs all migrations
     }),
     TypeOrmModule.forFeature([UserEntity, RefreshTokenEntity, ApiKeyEntity]),
     RedisModule.forRoot(),

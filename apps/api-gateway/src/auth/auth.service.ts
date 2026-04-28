@@ -9,7 +9,7 @@ export class AuthService {
     @Inject(SERVICES.AUTH) private readonly authClient: ClientProxy,
   ) {}
 
-  register(dto: { email: string; password: string; name: string }) {
+  register(dto: { email: string; password: string; firstName: string; lastName?: string }) {
     return firstValueFrom(this.authClient.send(AUTH_PATTERNS.REGISTER, dto));
   }
 

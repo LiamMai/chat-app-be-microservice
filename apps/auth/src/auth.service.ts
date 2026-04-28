@@ -35,7 +35,8 @@ export class AuthService {
       const user = await manager.save(
         manager.create(UserEntity, {
           email: dto.email,
-          name: dto.name,
+          firstName: dto.firstName,
+          lastName: dto.lastName ?? '',
           password,
           role: Role.USER, // default role
         }),

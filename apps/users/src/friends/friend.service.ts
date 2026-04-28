@@ -207,7 +207,7 @@ export class FriendService {
     const friendIds = data.map((f) => (f.userId === userId ? f.friendId : f.userId));
     const users = await this.userRepo.find({
       where: { id: In(friendIds) },
-      select: ['id', 'email', 'name', 'isActive'],
+      select: ['id', 'email', 'firstName', 'lastName', 'isActive'],
     });
 
     return {
@@ -263,7 +263,7 @@ export class FriendService {
       fetchItems: (ids) =>
         this.userRepo.find({
           where: { id: In(ids) },
-          select: ['id', 'email', 'name', 'isActive'],
+          select: ['id', 'email', 'firstName', 'lastName', 'isActive'],
         }),
     });
   }

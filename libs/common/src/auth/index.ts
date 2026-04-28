@@ -2,6 +2,7 @@ export * from './decorators/current-user.decorator';
 export * from './decorators/permissions.decorator';
 export * from './decorators/public.decorator';
 export * from './decorators/roles.decorator';
+export * from './enums/gender.enum';
 export * from './enums/permission.enum';
 export * from './enums/role.enum';
 export * from './enums/role-permissions';

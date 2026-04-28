@@ -27,7 +27,8 @@ enum Role {
 async function main() {
   const email = process.env.SUPER_ADMIN_EMAIL;
   const password = process.env.SUPER_ADMIN_PASSWORD;
-  const name = process.env.SUPER_ADMIN_NAME ?? 'Super Admin';
+  const firstName = process.env.SUPER_ADMIN_FIRST_NAME ?? 'Super';
+  const lastName  = process.env.SUPER_ADMIN_LAST_NAME  ?? 'Admin';
 
   if (!email || !password) {
     console.error('SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD must be set');
@@ -56,9 +57,9 @@ async function main() {
     if (existing.length === 0) {
       const hashed = await bcrypt.hash(password, 12);
       await ds.query(
-        `INSERT INTO auth_users (email, name, password, role, "isActive", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, true, NOW(), NOW())`,
-        [email, name, hashed, Role.SUPER_ADMIN],
+        `INSERT INTO auth_users (email, first_name, last_name, password, role, "isActive", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())`,
+        [email, firstName, lastName, hashed, Role.SUPER_ADMIN],
       );
       console.log(`✓ Super admin created: ${email}`);
     } else if (existing[0].role !== Role.SUPER_ADMIN) {

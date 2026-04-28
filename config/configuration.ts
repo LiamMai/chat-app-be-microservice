@@ -47,4 +47,9 @@ export const appConfig = {
     },
     appEnv: getEnv('APP_ENV', 'api-gateway') as 'api-gateway' | 'system' | 'user' | 'order' | 'content',
 
+    cloudinary: {
+        cloudName: getEnv('CLOUDINARY_CLOUD_NAME', ''),
+        apiKey: getEnv('CLOUDINARY_API_KEY', ''),
+        apiSecret: getEnv('CLOUDINARY_API_SECRET', ''),
+    },
 };

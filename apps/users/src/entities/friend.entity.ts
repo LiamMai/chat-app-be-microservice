@@ -30,7 +30,7 @@ export class FriendEntity {
   @Column('uuid')
   friendId: string;
 
-  @Column({ type: 'enum', enum: FriendStatus, default: FriendStatus.PENDING })
+  @Column({ type: 'enum', enum: FriendStatus, enumName: 'friend_status_enum', default: FriendStatus.PENDING })
   status: FriendStatus;
 
   @CreateDateColumn()

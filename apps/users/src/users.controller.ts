@@ -5,6 +5,7 @@ import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { BanUserDto } from './dto/ban-user.dto';
 import { AssignRoleDto } from './dto/assign-role.dto';
+import { SearchUsersDto } from './dto/search-users.dto';
 
 @Controller()
 export class UsersController {
@@ -20,9 +21,24 @@ export class UsersController {
     return this.usersService.findById(id);
   }
 
+  @MessagePattern(USERS_PATTERNS.SEARCH)
+  searchUsers(@Payload() dto: SearchUsersDto) {
+    return this.usersService.searchUsers(dto);
+  }
+
   @MessagePattern(USERS_PATTERNS.UPDATE_PROFILE)
   updateProfile(@Payload() dto: UpdateProfileDto) {
     return this.usersService.updateProfile(dto);
+  }
+
+  @MessagePattern(USERS_PATTERNS.UPDATE_AVATAR)
+  updateAvatar(@Payload() dto: { userId: string; avatarUrl: string }) {
+    return this.usersService.updateAvatar(dto);
+  }
+
+  @MessagePattern(USERS_PATTERNS.UPDATE_COVER)
+  updateCover(@Payload() dto: { userId: string; coverUrl: string }) {
+    return this.usersService.updateCover(dto);
   }
 
   @MessagePattern(USERS_PATTERNS.BAN_USER)

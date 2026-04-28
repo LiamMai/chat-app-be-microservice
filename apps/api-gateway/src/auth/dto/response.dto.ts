@@ -4,7 +4,8 @@ import { Permission } from '@app/common';
 export class UserDto {
   @ApiProperty() id: string;
   @ApiProperty() email: string;
-  @ApiProperty() name: string;
+  @ApiProperty() firstName: string;
+  @ApiProperty() lastName: string;
   @ApiProperty({ enum: Permission, isArray: true }) permissions: Permission[];
   @ApiProperty() isActive: boolean;
   @ApiProperty() createdAt: Date;

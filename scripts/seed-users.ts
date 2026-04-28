@@ -53,7 +53,8 @@ const PASSWORD = 'Seed@12345';
 
 interface SeedUser {
   email: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   role: Role;
 }
 
@@ -61,13 +62,14 @@ function makeUser(n: number): SeedUser {
   const nn = String(n).padStart(2, '0');
   return {
     email: `seed-user-${nn}@chat.dev`,
-    name: `Seed User ${nn}`,
+    firstName: 'Seed',
+    lastName: `User ${nn}`,
     role: Role.USER,
   };
 }
 
 const USERS: SeedUser[] = [
-  { email: 'seed-admin@chat.dev', name: 'Seed Admin', role: Role.ADMIN },
+  { email: 'seed-admin@chat.dev', firstName: 'Seed', lastName: 'Admin', role: Role.ADMIN },
   ...Array.from({ length: 30 }, (_, i) => makeUser(i + 1)),
 ];
 
@@ -131,10 +133,10 @@ async function main() {
 
     for (const user of USERS) {
       await ds.query(
-        `INSERT INTO auth_users (email, name, password, role, "isActive", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, true, NOW(), NOW())
+        `INSERT INTO auth_users (email, first_name, last_name, password, role, "isActive", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
          ON CONFLICT (email) DO NOTHING`,
-        [user.email, user.name, hashed, user.role],
+        [user.email, user.firstName, user.lastName, hashed, user.role],
       );
     }
 
