@@ -173,6 +173,16 @@ pnpm start:users     # users service (runs pending DB migrations on start)
 
 After login, Swagger auto-fills `Authorization` from the response `accessToken`. Paste the same token into the WS Playground to connect.
 
+### Default login (Swagger UI)
+
+`POST /auth/login` is pre-filled with the chat seed dev account:
+
+```json
+{ "email": "seed-user-01@chat.dev", "password": "Seed@12345" }
+```
+
+This user owns DMs, group rooms (`Cluster A Chat`, `Dev Team`) and friend graph data created by `pnpm seed:chat`. Click **Try it out → Execute** to log in; the bearer token is auto-attached to all subsequent requests.
+
 ## User Profile
 
 Registration accepts `firstName` (required) and `lastName` (optional). Profile fields can be updated individually via `PATCH /users/me`.
@@ -208,6 +218,34 @@ Authorization: Bearer <accessToken>
 
 Searches across `firstName`, `lastName`, `email`, and `username`. Only returns active users. Available to all authenticated users.
 
+## At-Rest Encryption (Chat Messages)
+
+Chat message bodies are stored AES-256-GCM-encrypted at rest. The chat service holds the key — this is not E2EE; it protects against DB dumps, not against the server.
+
+```bash
+# 1. Generate the key (32 raw bytes, base64)
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+
+# 2. Add to .env (use dotenvx set if .env is encrypted)
+echo "MESSAGE_AT_REST_KEY_BASE64=<paste>" >> .env
+
+# 3. Encrypt any pre-existing legacy plaintext rows (idempotent)
+pnpm migrate:encrypt-messages
+
+# 4. Verify same key decrypts existing rows
+pnpm migrate:diagnose-messages
+```
+
+The chat service prints the key fingerprint (SHA-256 first 8 hex) on boot — it must match the fingerprint printed by the migration / diagnose scripts. If they differ, ciphertext from a different key is not recoverable.
+
+| `encVersion` | Meaning |
+|---|---|
+| `0` (or unset) | Legacy plaintext (`content`) |
+| `1` | Server AES-GCM (`ciphertext` + `iv`) |
+| `2` | Reserved for client E2EE |
+
+Use `pnpm db:migrate` to run all migrations in order: Postgres TypeORM → Mongo indexes → encrypt legacy messages. **Back up the key**: lose it, lose every encrypted message permanently.
+
 ## PostgreSQL Migration Workflow
 
 Migrations live in `database/migrations/` and are tracked in the `typeorm_migrations` table.
@@ -239,7 +277,7 @@ All seed accounts use password **`Seed@12345`**.
 |---|---|---|---|---|
 | _(SUPER_ADMIN_EMAIL from .env)_ | SUPER_ADMIN | Super | Admin | Platform operator |
 | `seed-admin@chat.dev` | ADMIN | Seed | Admin | Admin endpoint testing |
-| `seed-user-01@chat.dev` | USER | Seed | User 01 | Cluster A, bridge to cluster B |
+| `seed-user-01@chat.dev` | USER | Seed | User 01 | **Swagger default** — Cluster A, bridge to cluster B, owns seed DMs + groups |
 | `seed-user-06@chat.dev` | USER | Seed | User 06 | Cluster B, bridge to clusters A + C |
 | `seed-user-11@chat.dev` | USER | Seed | User 11 | Cluster C |
 | `seed-user-16..18@chat.dev` | USER | Seed | User 16-18 | Pending requests → users 01-03 |
@@ -391,4 +429,9 @@ SUPER_ADMIN_LAST_NAME=Admin    # optional
 CLOUDINARY_CLOUD_NAME=...
 CLOUDINARY_API_KEY=...
 CLOUDINARY_API_SECRET=...
+
+# At-rest encryption for chat messages (32 raw bytes, base64)
+MESSAGE_AT_REST_KEY_BASE64=...
+# Optional — set to "false" in prod to silently null content on decrypt fail
+MESSAGE_DECRYPT_STRICT=true
 ```

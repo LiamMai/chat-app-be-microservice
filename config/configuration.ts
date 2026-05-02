@@ -52,4 +52,11 @@ export const appConfig = {
         apiKey: getEnv('CLOUDINARY_API_KEY', ''),
         apiSecret: getEnv('CLOUDINARY_API_SECRET', ''),
     },
+
+    messageAtRest: {
+        // AES-256 key (32 raw bytes) base64-encoded. Used to encrypt legacy
+        // plaintext messages so the DB never stores user chat in cleartext.
+        // Losing this key permanently loses access to legacy messages.
+        keyBase64: getEnv('MESSAGE_AT_REST_KEY_BASE64', ''),
+    },
 };

@@ -24,11 +24,12 @@ export class RegisterDto {
 }
 
 export class LoginDto {
-  @ApiProperty({ example: 'john@example.com' })
+  /** Default example uses the seed-chat dev account — has DMs, group rooms, friends. */
+  @ApiProperty({ example: 'seed-user-01@chat.dev' })
   @IsEmail()
   email: string;
 
-  @ApiProperty({ example: 'strongP@ssw0rd' })
+  @ApiProperty({ example: 'Seed@12345' })
   @IsString()
   password: string;
 }

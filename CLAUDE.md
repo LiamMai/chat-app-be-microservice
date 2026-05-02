@@ -169,6 +169,62 @@ Upload endpoints use `FileInterceptor` (multer memory storage) + `ParseFilePipe`
 
 Folders: `chat-app/avatars` (avatar), `chat-app/covers` (cover photo).
 
+## At-Rest Encryption (Messages)
+
+Chat messages are stored AES-256-GCM-encrypted at rest. Server holds the
+key (encVersion 1) — this is **not E2EE**: it protects against DB dumps,
+not against the server itself.
+
+| Field | Meaning |
+|-------|---------|
+| `content` | Plaintext (legacy / encVersion 0). Null after migration. |
+| `ciphertext` | base64 AES-GCM body + 16-byte tag. |
+| `iv` | base64 12-byte IV. |
+| `encVersion` | `0` plaintext, `1` server AES-GCM, `2` reserved for client E2EE. |
+
+### Key
+
+`MESSAGE_AT_REST_KEY_BASE64` — 32 raw bytes, base64-encoded.
+
+```bash
+# generate
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+
+# add to encrypted .env
+dotenvx set MESSAGE_AT_REST_KEY_BASE64 <value> -f .env
+```
+
+The chat service logs the key fingerprint (SHA-256 first 8 hex) on boot:
+
+```
+[MessageCrypto] at-rest encryption enabled — key fingerprint=4f3a92b1 strict=true
+```
+
+`pnpm migrate:encrypt-messages` and `pnpm migrate:diagnose-messages` print
+the same fingerprint. **All three must match** — a different fingerprint
+means a different key, and existing ciphertext won't decrypt.
+
+### Workflow
+
+```bash
+# encrypt legacy plaintext rows (idempotent)
+pnpm migrate:encrypt-messages
+
+# verify decrypt works against current key
+pnpm migrate:diagnose-messages
+```
+
+### Strict mode
+
+`MESSAGE_DECRYPT_STRICT` (default `true`) — when true, decrypt failures
+raise the real error so the API returns a 500 instead of silently nulling
+`content`. Set `false` only in prod where you'd rather degrade than 500.
+
+### Backup
+
+Lose the key → legacy ciphertext is unrecoverable. Keep the value in a
+secret manager (KMS / Vault / 1Password) and never commit it.
+
 ## API Response Envelope
 
 All responses use `TransformInterceptor` (in `@app/common`):
