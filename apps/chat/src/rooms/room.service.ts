@@ -1,14 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { AppException, CacheKey, CacheService, PageQueryDto, paginateMongo } from '@app/common';
+import { AppException, CacheKey, CacheService, PageDto, PageMetaDto, PageQueryDto } from '@app/common';
 import { Room, RoomDocument, RoomType } from '../entities/room.entity';
+import { Message, MessageDocument } from '../entities/message.entity';
+import { MessageCrypto } from '../messages/message-crypto';
 
 @Injectable()
 export class RoomService {
   constructor(
     @InjectModel(Room.name) private readonly roomModel: Model<RoomDocument>,
+    @InjectModel(Message.name) private readonly msgModel: Model<MessageDocument>,
     private readonly cache: CacheService,
+    private readonly crypto: MessageCrypto,
   ) {}
 
   // ── Create room ───────────────────────────────────────────────────────────
@@ -58,13 +62,75 @@ export class RoomService {
     return room;
   }
 
-  // ── List rooms for a user ─────────────────────────────────────────────────
+  // ── List rooms for a user (enriched) ──────────────────────────────────────
 
-  listRooms(userId: string, query?: PageQueryDto) {
-    return paginateMongo(this.roomModel, query, {
-      filter: { members: userId as any }, 
-      sort:   { updatedAt: -1 },
-    });
+  /**
+   * Returns each room a user belongs to, sorted by recent activity, with:
+   *   - lastMessage: latest non-deleted message (decrypted, body trimmed)
+   *   - unreadCount: messages in the room missing this user from `readBy`
+   *
+   * Uses one aggregation pipeline so a 50-room page is one round-trip.
+   */
+  async listRooms(userId: string, query?: PageQueryDto) {
+    const page  = Math.max(1, query?.page  ?? 1);
+    const limit = Math.min(query?.limit ?? 20, 100);
+    const skip  = (page - 1) * limit;
+
+    const filter = { members: userId };
+
+    const [rows, total] = await Promise.all([
+      this.roomModel.aggregate([
+        { $match: filter },
+        { $sort:  { updatedAt: -1 } },
+        { $skip:  skip },
+        { $limit: limit },
+        {
+          $lookup: {
+            from: 'messages',
+            let:  { roomId: '$_id' },
+            pipeline: [
+              { $match: { $expr: { $and: [
+                { $eq: ['$roomId', '$$roomId'] },
+                { $eq: ['$deletedAt', null] },
+              ] } } },
+              { $sort:  { createdAt: -1 } },
+              { $limit: 1 },
+            ],
+            as: 'lastMessage',
+          },
+        },
+        {
+          $lookup: {
+            from: 'messages',
+            let:  { roomId: '$_id' },
+            pipeline: [
+              { $match: { $expr: { $and: [
+                { $eq: ['$roomId', '$$roomId'] },
+                { $not: { $in: [userId, '$readBy'] } },
+                { $ne: ['$senderId', userId] },
+                { $eq: ['$deletedAt', null] },
+              ] } } },
+              { $count: 'n' },
+            ],
+            as: 'unread',
+          },
+        },
+        {
+          $addFields: {
+            lastMessage: { $arrayElemAt: ['$lastMessage', 0] },
+            unreadCount: { $ifNull: [{ $arrayElemAt: ['$unread.n', 0] }, 0] },
+          },
+        },
+        { $project: { unread: 0 } },
+      ]),
+      this.roomModel.countDocuments(filter),
+    ]);
+
+    for (const row of rows) {
+      if (row.lastMessage) this.crypto.decryptDoc(row.lastMessage);
+    }
+
+    return new PageDto(rows, new PageMetaDto({ page, limit, total }));
   }
 
   // ── Add member ────────────────────────────────────────────────────────────

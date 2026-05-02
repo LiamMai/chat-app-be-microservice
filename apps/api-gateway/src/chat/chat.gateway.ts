@@ -94,7 +94,7 @@ export class ChatGateway
     this.userSockets.get(userId)!.add(client.id);
 
     // Mark online
-    await this.cache.set(CacheKey.presence(userId), '1', PRESENCE_TTL);
+    await this.cache.set(CacheKey.presence(userId), Date.now(), PRESENCE_TTL);
 
     // Notify others
     client.broadcast.emit('user_online', { userId });
@@ -186,7 +186,7 @@ export class ChatGateway
   @SubscribeMessage('heartbeat')
   async handleHeartbeat(@ConnectedSocket() client: Socket) {
     const userId = this.requireUser(client);
-    await this.cache.set(CacheKey.presence(userId), '1', PRESENCE_TTL);
+    await this.cache.set(CacheKey.presence(userId), Date.now(), PRESENCE_TTL);
     client.emit('heartbeat_ack', { ts: Date.now() });
   }
 
