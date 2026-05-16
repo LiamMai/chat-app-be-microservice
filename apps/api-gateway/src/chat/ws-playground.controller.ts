@@ -153,7 +153,8 @@ const HTML = /* html */ `<!DOCTYPE html>
 
   const LISTEN_EVENTS = [
     'joined_room', 'left_room',
-    'new_message', 'message_read',
+    'new_message', 'message_edited', 'message_deleted', 'message_read',
+    'reaction_added', 'reaction_removed',
     'user_typing',
     'user_online', 'user_offline',
     'heartbeat_ack',

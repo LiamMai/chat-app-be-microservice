@@ -13,18 +13,34 @@ import { Inject, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Redis } from 'ioredis';
-import { CacheKey, CacheService, JwtPayload, REDIS_SUB_CLIENT } from '@app/common';
+import {
+  AppException,
+  CacheKey,
+  CacheService,
+  JwtPayload,
+  REDIS_SUB_CLIENT,
+  SERVICES,
+  USERS_PATTERNS,
+} from '@app/common';
 import { ChatService } from './chat.service';
+import { UsersService } from '../users/users.service';
+import { ClientProxy } from '@nestjs/microservices';
+import { firstValueFrom, timeout } from 'rxjs';
 
-const PRESENCE_TTL  = 30; // seconds — client must heartbeat within this window
-const TYPING_TTL    = 5;  // seconds — typing indicator auto-expires
+const PRESENCE_TTL = 30; // seconds — client must heartbeat within this window
+const TYPING_TTL = 5; // seconds — typing indicator auto-expires
 
 @WebSocketGateway({
   cors: { origin: '*', credentials: true },
   namespace: '/chat',
 })
 export class ChatGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleInit, OnModuleDestroy
+  implements
+    OnGatewayInit,
+    OnGatewayConnection,
+    OnGatewayDisconnect,
+    OnModuleInit,
+    OnModuleDestroy
 {
   @WebSocketServer() private readonly server: Server;
 
@@ -40,6 +56,7 @@ export class ChatGateway
     private readonly chatService: ChatService,
     private readonly cache: CacheService,
     @Inject(REDIS_SUB_CLIENT) private readonly redisSub: Redis,
+    @Inject(SERVICES.USERS) private readonly usersClient: ClientProxy,
   ) {}
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -166,9 +183,21 @@ export class ChatGateway
     @MessageBody() { roomId }: { roomId: string },
   ) {
     const userId = this.requireUser(client);
+
+    const user = await firstValueFrom<{ firstName: string; lastName: string }>(
+      this.usersClient.send(USERS_PATTERNS.FIND_BY_ID, { id: userId }),
+    );
+    if (!user) throw AppException.notFound('User not found');
+
     await this.cache.sAdd(CacheKey.typing(roomId), userId);
     await this.cache.expire(CacheKey.typing(roomId), TYPING_TTL);
-    client.to(roomId).emit('user_typing', { userId, roomId, typing: true });
+
+    client.to(roomId).emit('user_typing', {
+      userId,
+      roomId,
+      typing: true,
+      userName: `${user.firstName} ${user.lastName}`,
+    });
   }
 
   @SubscribeMessage('typing_stop')
@@ -195,7 +224,10 @@ export class ChatGateway
   private authenticate(client: Socket): string | null {
     const token =
       (client.handshake.auth?.token as string) ??
-      (client.handshake.headers?.authorization as string)?.replace('Bearer ', '');
+      (client.handshake.headers?.authorization as string)?.replace(
+        'Bearer ',
+        '',
+      );
 
     if (!token) return null;
 

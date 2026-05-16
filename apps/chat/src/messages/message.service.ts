@@ -1,23 +1,41 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { AppException, CacheKey, CacheService, PageQueryDto, paginateMongo } from '@app/common';
-import { Attachment, Message, MessageDocument, MessageType } from '../entities/message.entity';
+import { firstValueFrom, timeout } from 'rxjs';
+import {
+  AppException,
+  CacheKey,
+  CacheService,
+  PageQueryDto,
+  SERVICES,
+  USERS_PATTERNS,
+  paginateMongo,
+} from '@app/common';
+import {
+  Attachment,
+  Message,
+  MessageDocument,
+  MessageType,
+} from '../entities/message.entity';
 import { RoomService } from '../rooms/room.service';
 import { MessageCrypto } from './message-crypto';
 
 const RECENT_CACHE_SIZE = 50;
-const RECENT_CACHE_TTL  = 3600; // 1 h
-const PRESENCE_TTL      = 30;   // seconds
-const TYPING_TTL        = 5;    // seconds
+const RECENT_CACHE_TTL = 3600; // 1 h
+const PRESENCE_TTL = 30; // seconds
+const TYPING_TTL = 5; // seconds
+const RPC_TIMEOUT = 5000;
 
 @Injectable()
 export class MessageService {
   constructor(
-    @InjectModel(Message.name) private readonly msgModel: Model<MessageDocument>,
+    @InjectModel(Message.name)
+    private readonly msgModel: Model<MessageDocument>,
     private readonly roomService: RoomService,
     private readonly cache: CacheService,
     private readonly crypto: MessageCrypto,
+    @Inject(SERVICES.USERS) private readonly usersClient: ClientProxy,
   ) {}
 
   // ── Send message ──────────────────────────────────────────────────────────
@@ -29,15 +47,24 @@ export class MessageService {
     type?: MessageType;
     attachment?: Attachment | null;
   }) {
-    const { roomId, senderId, content, type = MessageType.TEXT, attachment = null } = payload;
+    const {
+      roomId,
+      senderId,
+      content,
+      type = MessageType.TEXT,
+      attachment = null,
+    } = payload;
 
-    if (!Types.ObjectId.isValid(roomId)) throw AppException.badRequest('Invalid room ID');
+    if (!Types.ObjectId.isValid(roomId))
+      throw AppException.badRequest('Invalid room ID');
 
     const isMember = await this.roomService.isMember(roomId, senderId);
     if (!isMember) throw AppException.forbidden('Not a member of this room');
 
     if (type !== MessageType.TEXT && !attachment) {
-      throw AppException.badRequest('attachment required for non-text messages');
+      throw AppException.badRequest(
+        'attachment required for non-text messages',
+      );
     }
 
     const baseDoc = {
@@ -49,7 +76,12 @@ export class MessageService {
     };
 
     const stored = this.crypto.isEnabled()
-      ? { ...baseDoc, ...this.crypto.encrypt(content), encVersion: 1, content: null }
+      ? {
+          ...baseDoc,
+          ...this.crypto.encrypt(content),
+          encVersion: 1,
+          content: null,
+        }
       : { ...baseDoc, content, encVersion: 0 };
 
     const created = await this.msgModel.create(stored);
@@ -57,25 +89,42 @@ export class MessageService {
     const outbound = this.crypto.decryptDoc({ ...obj });
 
     const cacheKey = CacheKey.recentMessages(roomId);
-    await this.cache.lPush({ key: cacheKey, values: [JSON.stringify(outbound)] });
-    await this.cache.lTrim({ key: cacheKey, start: 0, stop: RECENT_CACHE_SIZE - 1 });
+    await this.cache.lPush({
+      key: cacheKey,
+      values: [JSON.stringify(outbound)],
+    });
+    await this.cache.lTrim({
+      key: cacheKey,
+      start: 0,
+      stop: RECENT_CACHE_SIZE - 1,
+    });
     await this.cache.expire(cacheKey, RECENT_CACHE_TTL);
 
-    await this.cache.publish(CacheKey.roomChannel(roomId), { event: 'message_new', message: outbound });
+    await this.cache.publish(CacheKey.roomChannel(roomId), {
+      event: 'new_message',
+      message: outbound,
+    });
 
     return outbound;
   }
 
   // ── Edit message ──────────────────────────────────────────────────────────
 
-  async editMessage(payload: { messageId: string; userId: string; content: string }) {
+  async editMessage(payload: {
+    messageId: string;
+    userId: string;
+    content: string;
+  }) {
     const { messageId, userId, content } = payload;
-    if (!Types.ObjectId.isValid(messageId)) throw AppException.badRequest('Invalid message ID');
+    if (!Types.ObjectId.isValid(messageId))
+      throw AppException.badRequest('Invalid message ID');
 
     const msg = await this.msgModel.findById(messageId);
     if (!msg) throw AppException.notFound('Message not found');
-    if (msg.senderId !== userId) throw AppException.forbidden('Only sender can edit');
-    if (msg.deletedAt) throw AppException.badRequest('Cannot edit a deleted message');
+    if (msg.senderId !== userId)
+      throw AppException.forbidden('Only sender can edit');
+    if (msg.deletedAt)
+      throw AppException.badRequest('Cannot edit a deleted message');
 
     if (this.crypto.isEnabled()) {
       const { ciphertext, iv } = this.crypto.encrypt(content);
@@ -104,11 +153,13 @@ export class MessageService {
 
   async deleteMessage(payload: { messageId: string; userId: string }) {
     const { messageId, userId } = payload;
-    if (!Types.ObjectId.isValid(messageId)) throw AppException.badRequest('Invalid message ID');
+    if (!Types.ObjectId.isValid(messageId))
+      throw AppException.badRequest('Invalid message ID');
 
     const msg = await this.msgModel.findById(messageId);
     if (!msg) throw AppException.notFound('Message not found');
-    if (msg.senderId !== userId) throw AppException.forbidden('Only sender can delete');
+    if (msg.senderId !== userId)
+      throw AppException.forbidden('Only sender can delete');
     if (msg.deletedAt) return { messageId, alreadyDeleted: true };
 
     msg.deletedAt = new Date();
@@ -128,14 +179,23 @@ export class MessageService {
 
   // ── Reactions ─────────────────────────────────────────────────────────────
 
-  async addReaction(payload: { messageId: string; userId: string; emoji: string }) {
+  async addReaction(payload: {
+    messageId: string;
+    userId: string;
+    emoji: string;
+  }) {
     const { messageId, userId, emoji } = payload;
-    if (!Types.ObjectId.isValid(messageId)) throw AppException.badRequest('Invalid message ID');
-    if (!emoji || emoji.length > 16) throw AppException.badRequest('Invalid emoji');
+    if (!Types.ObjectId.isValid(messageId))
+      throw AppException.badRequest('Invalid message ID');
+    if (!emoji || emoji.length > 16)
+      throw AppException.badRequest('Invalid emoji');
 
     const msg = await this.msgModel.findById(messageId).select('roomId');
     if (!msg) throw AppException.notFound('Message not found');
-    const isMember = await this.roomService.isMember(msg.roomId.toString(), userId);
+    const isMember = await this.roomService.isMember(
+      msg.roomId.toString(),
+      userId,
+    );
     if (!isMember) throw AppException.forbidden('Not a member of this room');
 
     await this.msgModel.updateOne(
@@ -152,9 +212,14 @@ export class MessageService {
     return { messageId, userId, emoji };
   }
 
-  async removeReaction(payload: { messageId: string; userId: string; emoji: string }) {
+  async removeReaction(payload: {
+    messageId: string;
+    userId: string;
+    emoji: string;
+  }) {
     const { messageId, userId, emoji } = payload;
-    if (!Types.ObjectId.isValid(messageId)) throw AppException.badRequest('Invalid message ID');
+    if (!Types.ObjectId.isValid(messageId))
+      throw AppException.badRequest('Invalid message ID');
 
     const msg = await this.msgModel.findById(messageId).select('roomId');
     if (!msg) throw AppException.notFound('Message not found');
@@ -185,12 +250,24 @@ export class MessageService {
    * — the set itself expires, so individual entries fade naturally if the
    * client stops sending heartbeats.
    */
-  async setTyping(payload: { roomId: string; userId: string; typing: boolean }) {
+  async setTyping(payload: {
+    roomId: string;
+    userId: string;
+    typing: boolean;
+  }) {
     const { roomId, userId, typing } = payload;
-    if (!Types.ObjectId.isValid(roomId)) throw AppException.badRequest('Invalid room ID');
+    if (!Types.ObjectId.isValid(roomId))
+      throw AppException.badRequest('Invalid room ID');
 
     const isMember = await this.roomService.isMember(roomId, userId);
     if (!isMember) throw AppException.forbidden('Not a member of this room');
+
+    const user = await firstValueFrom<{ firstName: string; lastName: string }>(
+      this.usersClient
+        .send(USERS_PATTERNS.FIND_BY_ID, { id: userId })
+        .pipe(timeout(RPC_TIMEOUT)),
+    );
+    if (!user) throw AppException.notFound('User not found');
 
     const key = CacheKey.typing(roomId);
     if (typing) {
@@ -200,28 +277,38 @@ export class MessageService {
       await this.cache.sRem(key, userId);
     }
 
-    await this.cache.publish(CacheKey.roomChannel(roomId), {
-      event: 'typing',
+    const data = {
       roomId,
       userId,
       typing,
+      userName: `${user.firstName} ${user.lastName}`,
+    };
+
+    await this.cache.publish(CacheKey.roomChannel(roomId), {
+      event: 'typing',
+      ...data
     });
-    return { roomId, userId, typing };
+    return data
   }
 
   // ── Message history (paginated) ───────────────────────────────────────────
 
-  async getHistory(payload: { roomId: string; userId: string; query: PageQueryDto }) {
+  async getHistory(payload: {
+    roomId: string;
+    userId: string;
+    query: PageQueryDto;
+  }) {
     const { roomId, userId, query } = payload;
 
-    if (!Types.ObjectId.isValid(roomId)) throw AppException.badRequest('Invalid room ID');
+    if (!Types.ObjectId.isValid(roomId))
+      throw AppException.badRequest('Invalid room ID');
 
     const isMember = await this.roomService.isMember(roomId, userId);
     if (!isMember) throw AppException.forbidden('Not a member of this room');
 
     const page = await paginateMongo(this.msgModel, query, {
       filter: { roomId: new Types.ObjectId(roomId) },
-      sort:   { createdAt: -1 },
+      sort: { createdAt: -1 },
     });
 
     for (const doc of page.data) this.crypto.decryptDoc(doc as any);
@@ -233,7 +320,8 @@ export class MessageService {
   async markRead(payload: { roomId: string; userId: string }) {
     const { roomId, userId } = payload;
 
-    if (!Types.ObjectId.isValid(roomId)) throw AppException.badRequest('Invalid room ID');
+    if (!Types.ObjectId.isValid(roomId))
+      throw AppException.badRequest('Invalid room ID');
 
     const isMember = await this.roomService.isMember(roomId, userId);
     if (!isMember) throw AppException.forbidden('Not a member of this room');
@@ -264,7 +352,9 @@ export class MessageService {
    *   lastSeen  — timestamp written on last refreshPresence; null if never
    *               connected since the cache started.
    */
-  async getPresence(userIds: string[]): Promise<{ userId: string; online: boolean; lastSeen: number | null }[]> {
+  async getPresence(
+    userIds: string[],
+  ): Promise<{ userId: string; online: boolean; lastSeen: number | null }[]> {
     const results = await Promise.all(
       userIds.map(async (userId) => {
         const v = await this.cache.get<number>(CacheKey.presence(userId));

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { appConfig } from 'config/configuration';
-import { RedisModule } from '@app/common';
+import { RedisModule, RmqModule, SERVICES, QUEUES } from '@app/common';
 import { ChatController } from './chat.controller';
 import { RoomService } from './rooms/room.service';
 import { MessageService } from './messages/message.service';
@@ -17,6 +17,7 @@ import { Message, MessageSchema } from './entities/message.entity';
       { name: Message.name, schema: MessageSchema },
     ]),
     RedisModule.forRoot(),
+    RmqModule.register({ name: SERVICES.USERS, queue: QUEUES[SERVICES.USERS] }),
   ],
   controllers: [ChatController],
   providers: [RoomService, MessageService, MessageCrypto],
