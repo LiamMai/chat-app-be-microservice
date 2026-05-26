@@ -21,6 +21,11 @@ export class UsersController {
     return this.usersService.findById(id);
   }
 
+  @MessagePattern(USERS_PATTERNS.FIND_BY_IDS)
+  findByIds(@Payload() { ids }: { ids: string[] }) {
+    return this.usersService.findByIds(ids);
+  }
+
   @MessagePattern(USERS_PATTERNS.SEARCH)
   searchUsers(@Payload() dto: SearchUsersDto) {
     return this.usersService.searchUsers(dto);

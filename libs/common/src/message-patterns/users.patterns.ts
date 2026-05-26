@@ -2,6 +2,7 @@ export const USERS_PATTERNS = {
   // ── Users ────────────────────────────────────────────────────────────────
   FIND_ALL:       'users.findAll',
   FIND_BY_ID:     'users.findById',
+  FIND_BY_IDS:    'users.findByIds',
   SEARCH:         'users.search',
   UPDATE_PROFILE: 'users.updateProfile',
   UPDATE_AVATAR:  'users.updateAvatar',

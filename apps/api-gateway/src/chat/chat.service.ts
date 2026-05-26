@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { firstValueFrom, timeout } from 'rxjs';
-import { AppException, CHAT_PATTERNS, PageQueryDto, SERVICES } from '@app/common';
-import { CreateRoomDto } from './dto/request.dto';
+import { AppException, CHAT_PATTERNS, PageQueryDto, SERVICES, USERS_PATTERNS } from '@app/common';
+import { CreateRoomDto, RoomTypeDto } from './dto/request.dto';
 
 const RPC_TIMEOUT = 5000;
 
@@ -10,6 +10,7 @@ const RPC_TIMEOUT = 5000;
 export class ChatService {
   constructor(
     @Inject(SERVICES.CHAT) private readonly chatClient: ClientProxy,
+    @Inject(SERVICES.USERS) private readonly usersClient: ClientProxy,
   ) {}
 
   private async send<T>(pattern: string, payload: unknown): Promise<T> {
@@ -40,8 +41,50 @@ export class ChatService {
     return this.send(CHAT_PATTERNS.ROOM_GET, { roomId, userId });
   }
 
-  listRooms(userId: string, query?: PageQueryDto) {
-    return this.send(CHAT_PATTERNS.ROOM_LIST, { userId, query });
+  async listRooms(userId: string, query?: PageQueryDto) {
+    const result = await this.send<{ data: any[]; meta: unknown }>(
+      CHAT_PATTERNS.ROOM_LIST, { userId, query },
+    );
+
+    const memberIds: string[] = [
+      ...new Set(result.data.flatMap((room: any) => room.members as string[])),
+    ];
+
+    if (memberIds.length === 0) return result;
+
+    const users = await Promise.all(
+      memberIds.map((id) =>
+        firstValueFrom(
+          this.usersClient.send(USERS_PATTERNS.FIND_BY_ID, { id }).pipe(timeout(RPC_TIMEOUT)),
+        ).catch(() => null),
+      ),
+    );
+
+    const userMap = new Map(
+      users.filter(Boolean).map((u: any) => [u.id, u]),
+    );
+
+    return {
+      ...result,
+      data: result.data.map((room: any) => {
+        const members = (room.members as string[]).map(
+          (id) => userMap.get(id) ?? { id, email: id, firstName: '', lastName: '' },
+        );
+
+        let name = room.name;
+        if (room.type === RoomTypeDto.DM) {
+          const other = members.find((m: any) => m.id !== userId);
+          if (other) {
+            name = other.username
+              || [other.firstName, other.lastName].filter(Boolean).join(' ')
+              || other.email
+              || null;
+          }
+        }
+
+        return { ...room, members, name };
+      }),
+    };
   }
 
   addMember(roomId: string, requesterId: string, targetUserId: string) {

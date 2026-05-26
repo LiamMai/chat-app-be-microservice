@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { ILike, In, Repository } from 'typeorm';
 import { AppException, Gender, paginate, PageQueryDto, Role } from '@app/common';
 import { UserEntity } from './entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -40,6 +40,14 @@ export class UsersService {
         { username: ILike(term), isActive: true },
       ],
       order: { firstName: 'ASC' },
+    });
+  }
+
+  findByIds(ids: string[]) {
+    if (!ids.length) return Promise.resolve([]);
+    return this.userRepo.find({
+      where: { id: In(ids) },
+      select: ['id', 'email', 'firstName', 'lastName', 'username', 'avatarUrl'],
     });
   }
 
