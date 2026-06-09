@@ -91,7 +91,8 @@ export class RoomService {
             pipeline: [
               { $match: { $expr: { $and: [
                 { $eq: ['$roomId', '$$roomId'] },
-                { $eq: ['$deletedAt', null] },
+                // missing field !== null in aggregation $eq, so coerce via $ifNull
+                { $eq: [{ $ifNull: ['$deletedAt', null] }, null] },
               ] } } },
               { $sort:  { createdAt: -1 } },
               { $limit: 1 },
@@ -108,7 +109,7 @@ export class RoomService {
                 { $eq: ['$roomId', '$$roomId'] },
                 { $not: { $in: [userId, '$readBy'] } },
                 { $ne: ['$senderId', userId] },
-                { $eq: ['$deletedAt', null] },
+                { $eq: [{ $ifNull: ['$deletedAt', null] }, null] },
               ] } } },
               { $count: 'n' },
             ],

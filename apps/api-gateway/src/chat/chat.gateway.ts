@@ -105,6 +105,14 @@ export class ChatGateway
       return;
     }
 
+    // Snapshot of who is already online (before adding self) — sent only to
+    // this client so a late joiner learns about peers that connected earlier.
+    // Without this, presence is only learned from live user_online broadcasts,
+    // so the first-connected user never hears about the second.
+    const alreadyOnline = Array.from(this.userSockets.keys()).filter(
+      (id) => id !== userId,
+    );
+
     // Track socket ↔ user
     this.socketUser.set(client.id, userId);
     if (!this.userSockets.has(userId)) this.userSockets.set(userId, new Set());
@@ -113,7 +121,8 @@ export class ChatGateway
     // Mark online
     await this.cache.set(CacheKey.presence(userId), Date.now(), PRESENCE_TTL);
 
-    // Notify others
+    // Seed this client with the current online set, then notify others of us.
+    client.emit('online_users', { userIds: alreadyOnline });
     client.broadcast.emit('user_online', { userId });
 
     this.logger.debug(`Connected: ${client.id} (user ${userId})`);

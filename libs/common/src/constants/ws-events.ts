@@ -23,6 +23,8 @@ export const WsServerEvent = {
   // Presence (broadcast to all)
   USER_ONLINE: 'user_online',
   USER_OFFLINE: 'user_offline',
+  /** Snapshot of currently-online users — emitted only to a freshly-connected client */
+  ONLINE_USERS: 'online_users',
 
   // Typing — direct gateway path (no Redis)
   USER_TYPING: 'user_typing',
