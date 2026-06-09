@@ -1,13 +1,23 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
-import { AppException, CHAT_PATTERNS, CacheKey, CacheService, PageQueryDto, SERVICES, paginate, paginateCachedList, Role } from '@app/common';
+import {
+  AppException,
+  CHAT_PATTERNS,
+  CacheKey,
+  CacheService,
+  PageQueryDto,
+  SERVICES,
+  paginate,
+  paginateCachedList,
+  Role,
+} from '@app/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { FriendEntity, FriendStatus } from '../entities/friend.entity';
 import { UserEntity } from '../entities/user.entity';
 
-const SUGGESTION_TTL   = 3600;
-const SUGGESTION_POOL  = 200;
+const SUGGESTION_TTL = 3600;
+const SUGGESTION_POOL = 200;
 
 @Injectable()
 export class FriendService {
@@ -28,19 +38,25 @@ export class FriendService {
   // ── Send request ─────────────────────────────────────────────────────────
 
   async sendRequest(userId: string, friendId: string) {
-    if (userId === friendId) throw AppException.badRequest('Cannot add yourself');
+    if (userId === friendId)
+      throw AppException.badRequest('Cannot add yourself');
 
     // Fetch both users to check roles
     const [requester, target] = await Promise.all([
-      this.userRepo.findOne({ where: { id: userId },   select: ['id', 'role'] }),
-      this.userRepo.findOne({ where: { id: friendId }, select: ['id', 'role'] }),
+      this.userRepo.findOne({ where: { id: userId }, select: ['id', 'role'] }),
+      this.userRepo.findOne({
+        where: { id: friendId },
+        select: ['id', 'role'],
+      }),
     ]);
 
     if (!target) throw AppException.notFound('User not found');
 
     // SUPER_ADMIN is a platform operator — not a chat participant
     if (target.role === Role.SUPER_ADMIN) {
-      throw AppException.forbidden('Cannot send friend request to a super admin');
+      throw AppException.forbidden(
+        'Cannot send friend request to a super admin',
+      );
     }
     if (requester?.role === Role.SUPER_ADMIN) {
       throw AppException.forbidden('Super admins cannot send friend requests');
@@ -63,25 +79,37 @@ export class FriendService {
     });
 
     if (existing) {
-      if (existing.status === FriendStatus.ACCEPTED) throw AppException.conflict('Already friends');
-      if (existing.status === FriendStatus.PENDING)  throw AppException.conflict('Request already pending');
+      if (existing.status === FriendStatus.ACCEPTED)
+        throw AppException.conflict('Already friends');
+      if (existing.status === FriendStatus.PENDING)
+        throw AppException.conflict('Request already pending');
       // Declined → allow re-request: update row
       if (existing.status === FriendStatus.DECLINED) {
-        existing.userId   = userId;
+        existing.userId = userId;
         existing.friendId = friendId;
-        existing.status   = FriendStatus.PENDING;
+        existing.status = FriendStatus.PENDING;
         return this.friendRepo.save(existing);
       }
     }
 
-    return this.friendRepo.save(this.friendRepo.create({ userId, friendId, status: FriendStatus.PENDING }));
+    return this.friendRepo.save(
+      this.friendRepo.create({
+        userId,
+        friendId,
+        status: FriendStatus.PENDING,
+      }),
+    );
   }
 
   // ── Accept ────────────────────────────────────────────────────────────────
 
   async accept(userId: string, requesterId: string) {
     const request = await this.friendRepo.findOne({
-      where: { userId: requesterId, friendId: userId, status: FriendStatus.PENDING },
+      where: {
+        userId: requesterId,
+        friendId: userId,
+        status: FriendStatus.PENDING,
+      },
     });
     if (!request) throw AppException.notFound('Friend request not found');
 
@@ -104,7 +132,8 @@ export class FriendService {
         members: [userId, requesterId],
       })
       .subscribe({
-        error: (err) => this.logger.error('Auto DM room creation failed', err?.message),
+        error: (err) =>
+          this.logger.error('Auto DM room creation failed', err?.message),
       });
 
     return request;
@@ -114,7 +143,11 @@ export class FriendService {
 
   async decline(userId: string, requesterId: string) {
     const request = await this.friendRepo.findOne({
-      where: { userId: requesterId, friendId: userId, status: FriendStatus.PENDING },
+      where: {
+        userId: requesterId,
+        friendId: userId,
+        status: FriendStatus.PENDING,
+      },
     });
     if (!request) throw AppException.notFound('Friend request not found');
 
@@ -146,7 +179,8 @@ export class FriendService {
   // ── Block ─────────────────────────────────────────────────────────────────
 
   async block(userId: string, targetId: string) {
-    if (userId === targetId) throw AppException.badRequest('Cannot block yourself');
+    if (userId === targetId)
+      throw AppException.badRequest('Cannot block yourself');
 
     // Remove friendship if exists
     const existing = await this.friendRepo.findOne({
@@ -157,17 +191,24 @@ export class FriendService {
     });
 
     if (existing) {
-      if (existing.status === FriendStatus.BLOCKED && existing.userId === userId) {
+      if (
+        existing.status === FriendStatus.BLOCKED &&
+        existing.userId === userId
+      ) {
         throw AppException.conflict('Already blocked');
       }
       // Reuse row — set blocker as userId
-      existing.userId   = userId;
+      existing.userId = userId;
       existing.friendId = targetId;
-      existing.status   = FriendStatus.BLOCKED;
+      existing.status = FriendStatus.BLOCKED;
       await this.friendRepo.save(existing);
     } else {
       await this.friendRepo.save(
-        this.friendRepo.create({ userId, friendId: targetId, status: FriendStatus.BLOCKED }),
+        this.friendRepo.create({
+          userId,
+          friendId: targetId,
+          status: FriendStatus.BLOCKED,
+        }),
       );
     }
 
@@ -199,12 +240,17 @@ export class FriendService {
       )
       .orderBy('f.updatedAt', 'DESC');
 
-    const page  = Math.max(1, query.page  ?? 1);
+    const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(query.limit ?? 20, 100);
-    const [data, total] = await qb.skip((page - 1) * limit).take(limit).getManyAndCount();
+    const [data, total] = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
     // Resolve user info for the "other" side
-    const friendIds = data.map((f) => (f.userId === userId ? f.friendId : f.userId));
+    const friendIds = data.map((f) =>
+      f.userId === userId ? f.friendId : f.userId,
+    );
     const users = await this.userRepo.find({
       where: { id: In(friendIds) },
       select: ['id', 'email', 'firstName', 'lastName', 'isActive'],
@@ -225,11 +271,41 @@ export class FriendService {
 
   // ── Incoming requests ─────────────────────────────────────────────────────
 
-  listIncoming(userId: string, query: PageQueryDto) {
-    return paginate(this.friendRepo, query, {
+  /**
+   * Pending requests sent *to* userId, with the requester's profile resolved
+   * so the UI can render "X sent you a friend request" without an extra lookup.
+   */
+  async listIncoming(userId: string, query: PageQueryDto) {
+    const page = await paginate(this.friendRepo, query, {
       where: { friendId: userId, status: FriendStatus.PENDING },
       order: { createdAt: 'DESC' },
     });
+
+    const requesterIds = page.data.map((r) => r.userId);
+    const users = requesterIds.length
+      ? await this.userRepo.find({
+          where: { id: In(requesterIds) },
+          select: [
+            'id',
+            'email',
+            'firstName',
+            'lastName',
+            'avatarUrl',
+            'isActive',
+          ],
+        })
+      : [];
+    const byId = new Map(users.map((u) => [u.id, u]));
+
+    const data = page.data.map((r) => ({
+      id: r.id,
+      requesterId: r.userId,
+      status: r.status,
+      createdAt: r.createdAt,
+      requester: byId.get(r.userId) ?? null,
+    }));
+
+    return { data, meta: page.meta };
   }
 
   // ── Outgoing requests ─────────────────────────────────────────────────────
@@ -270,7 +346,9 @@ export class FriendService {
 
   private async buildSuggestionIds(userId: string): Promise<string[]> {
     // Step 1: mutual-friends ranked by mutual count
-    const mutuals = await this.dataSource.query<{ suggested_user_id: string }[]>(
+    const mutuals = await this.dataSource.query<
+      { suggested_user_id: string }[]
+    >(
       `
       SELECT f2."friendId" AS suggested_user_id
       FROM   friends f1
