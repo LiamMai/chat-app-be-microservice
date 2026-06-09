@@ -25,12 +25,22 @@ import { FriendsService } from './friends.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, apiPaginatedSchema } from '@app/common';
 import { FriendPageQueryDto } from './dto/request.dto';
-import { FriendRequestDto, FriendStatusDto, FriendUserDto } from './dto/response.dto';
+import {
+  FriendRequestDto,
+  FriendStatusDto,
+  FriendUserDto,
+  IncomingFriendRequestDto,
+} from './dto/response.dto';
 
 @ApiTags('Friends')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
-@ApiExtraModels(FriendUserDto, FriendRequestDto, FriendStatusDto)
+@ApiExtraModels(
+  FriendUserDto,
+  FriendRequestDto,
+  FriendStatusDto,
+  IncomingFriendRequestDto,
+)
 @Controller('friends')
 export class FriendsController {
   constructor(private readonly friendsService: FriendsService) {}
@@ -38,7 +48,9 @@ export class FriendsController {
   // ── Suggestions ──────────────────────────────────────────────────────────
 
   @Get('suggestions')
-  @ApiOperation({ summary: 'Get friend suggestions (mutual friends + new users, paginated)' })
+  @ApiOperation({
+    summary: 'Get friend suggestions (mutual friends + new users, paginated)',
+  })
   @ApiOkResponse(apiPaginatedSchema({ $ref: getSchemaPath(FriendUserDto) }))
   getSuggestions(
     @CurrentUser('userId') userId: string,
@@ -63,7 +75,9 @@ export class FriendsController {
 
   @Get('requests/incoming')
   @ApiOperation({ summary: 'List incoming pending friend requests' })
-  @ApiOkResponse(apiPaginatedSchema({ $ref: getSchemaPath(FriendRequestDto) }))
+  @ApiOkResponse(
+    apiPaginatedSchema({ $ref: getSchemaPath(IncomingFriendRequestDto) }),
+  )
   listIncoming(
     @CurrentUser('userId') userId: string,
     @Query() query: FriendPageQueryDto,
